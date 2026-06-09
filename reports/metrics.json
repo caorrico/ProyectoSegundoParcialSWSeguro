@@ -1,0 +1,30 @@
+{
+  "accuracy": 0.8427,
+  "precision": 0.848,
+  "recall": 0.9688,
+  "f1_score": 0.9044,
+  "roc_auc": 0.9035,
+  "cross_validation_f1_mean": 0.91,
+  "confusion_matrix": [
+    [
+      37,
+      50
+    ],
+    [
+      9,
+      279
+    ]
+  ],
+  "feature_importances": {
+    "lines_of_code": 0.1075,
+    "cyclomatic_complexity": 0.1673,
+    "nesting_depth": 0.0566,
+    "dependency_count": 0.0733,
+    "deprecated_functions": 0.0882,
+    "unsafe_patterns": 0.1665,
+    "security_hotspots": 0.0952,
+    "test_coverage": 0.0902,
+    "recent_commits": 0.0708,
+    "past_vulnerabilities": 0.0843
+  }
+}

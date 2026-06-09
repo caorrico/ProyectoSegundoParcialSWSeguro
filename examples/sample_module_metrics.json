@@ -1,0 +1,12 @@
+{
+  "lines_of_code": 2200,
+  "cyclomatic_complexity": 39,
+  "nesting_depth": 10,
+  "dependency_count": 34,
+  "deprecated_functions": 7,
+  "unsafe_patterns": 10,
+  "security_hotspots": 15,
+  "test_coverage": 18.5,
+  "recent_commits": 65,
+  "past_vulnerabilities": 5
+}
