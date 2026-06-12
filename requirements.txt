@@ -5,3 +5,6 @@ joblib==1.5.3
 pytest==9.0.3
 pip-audit==2.10.0
 ruff==0.15.16
+shap==0.45.1
+lizard==1.17.10
+ijson==3.3.0

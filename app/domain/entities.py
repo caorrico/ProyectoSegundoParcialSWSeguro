@@ -57,6 +57,17 @@ class CodeModuleMetrics:
 
 
 @dataclass(frozen=True)
+class RawCodeModule:
+    raw_code: str
+
+    def __post_init__(self) -> None:
+        if not self.raw_code.strip():
+            raise ValueError("raw_code cannot be empty.")
+
+    def to_feature_dict(self) -> Dict[str, Any]:
+        return {"raw_code": self.raw_code}
+
+@dataclass(frozen=True)
 class VulnerabilityPrediction:
     is_vulnerable: bool
     risk_probability: float

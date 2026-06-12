@@ -44,4 +44,10 @@ jobs:
         run: python -m app.interfaces.cli train
 
       - name: Predict sample module
-        run: python -m app.interfaces.cli predict --input examples/sample_module_metrics.json
+        run: python -m app.interfaces.cli predict --input examples/sample_module_metrics.json --shap-report reports/shap_explanation.html
+
+      - name: Upload SHAP report
+        uses: actions/upload-artifact@v4
+        with:
+          name: shap-report
+          path: reports/shap_explanation.html
