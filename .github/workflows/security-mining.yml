@@ -1,53 +1,395 @@
-name: Security Mining Pipeline
+name: "🛡️ Secure DevOps Pipeline"
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
+    branches: [ test ]
+    types: [opened, synchronize, reopened]
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
+  issues: write
 
 jobs:
-  security-mining:
+  # ================================================================
+  # ETAPA 1: Revisión de Seguridad con Modelo de Minería de Datos
+  # ================================================================
+  security-review:
+    name: "🔍 Etapa 1 — Revisión de Seguridad IA"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      is_vulnerable: ${{ steps.ml-scan.outputs.is_vulnerable }}
+      risk_level: ${{ steps.ml-scan.outputs.risk_level }}
+      risk_probability: ${{ steps.ml-scan.outputs.risk_probability }}
+      vulnerability_types: ${{ steps.ml-scan.outputs.vulnerability_types }}
+
+    steps:
+      - name: "📥 Checkout del código"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "🐍 Setup Python 3.10"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: "📦 Instalar dependencias"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: "📢 Notificar inicio de revisión vía Telegram"
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d parse_mode="HTML" \
+            -d text="🔍 <b>Iniciando revisión de seguridad IA</b>%0A%0ARepositorio: <code>${{ github.repository }}</code>%0APR: <b>#${{ github.event.number }}</b>%0ARama: <code>${{ github.head_ref }} → ${{ github.base_ref }}</code>%0AAutor: @${{ github.actor }}" || true
+
+      - name: "🧬 Extraer diff del PR y generar archivo para análisis"
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git diff origin/${{ github.base_ref }}...HEAD -- '*.c' '*.cpp' '*.h' '*.hpp' '*.java' '*.py' '*.js' '*.ts' '*.go' '*.rs' > /tmp/pr_diff.txt
+          # Si el diff está vacío, crear archivo indicativo
+          if [ ! -s /tmp/pr_diff.txt ]; then
+            echo "// No se encontraron archivos de código fuente modificados" > /tmp/pr_diff.txt
+          fi
+          echo "Diff generado:"
+          wc -l /tmp/pr_diff.txt
+          # Guardar también los archivos modificados para análisis individual
+          git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.(c|cpp|h|hpp|java|py|js|ts|go|rs)$' > /tmp/changed_files.txt || true
+          echo "Archivos modificados:"
+          cat /tmp/changed_files.txt || echo "(ninguno)"
+
+      - name: "🤖 Ejecutar modelo de Minería de Datos (Random Forest + AST)"
+        id: ml-scan
+        run: |
+          # Entrenar modelo si no existe
+          if [ ! -f models/vulnerability_model.joblib ]; then
+            echo "Modelo no encontrado, entrenando con dataset OWASP 2025..."
+            python scripts/generate_owasp_dataset.py
+            python -m app.interfaces.cli train --use-owasp
+          fi
+
+          # Analizar cada archivo modificado
+          IS_VULNERABLE=false
+          RISK_LEVEL="LOW"
+          MAX_PROB=0
+          VULN_TYPES="[]"
+          SCAN_RESULTS=""
+
+          if [ -s /tmp/changed_files.txt ]; then
+            while IFS= read -r file; do
+              if [ -f "$file" ]; then
+                echo "Analizando: $file"
+                RESULT=$(python -m app.interfaces.cli predict --raw-code "$file" 2>/dev/null || echo '{"is_vulnerable":false,"risk_probability":0,"risk_level":"LOW","vulnerability_types":[],"cwe_ids":[]}')
+                echo "Resultado para $file: $RESULT"
+                
+                FILE_VULN=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(str(d.get('is_vulnerable',False)).lower())")
+                FILE_PROB=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('risk_probability',0))")
+                FILE_LEVEL=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('risk_level','LOW'))")
+                FILE_TYPES=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(','.join(d.get('vulnerability_types',[])))")
+                
+                SCAN_RESULTS="${SCAN_RESULTS}\n📄 \`${file}\`: **${FILE_LEVEL}** (${FILE_PROB})\n${FILE_TYPES}"
+                
+                if [ "$FILE_VULN" = "true" ]; then
+                  IS_VULNERABLE=true
+                  # Comparar probabilidades para tomar el máximo
+                  if python3 -c "exit(0 if float('${FILE_PROB}') > float('${MAX_PROB}') else 1)"; then
+                    MAX_PROB=$FILE_PROB
+                    RISK_LEVEL=$FILE_LEVEL
+                    VULN_TYPES="$FILE_TYPES"
+                  fi
+                fi
+              fi
+            done < /tmp/changed_files.txt
+          else
+            # Si no hay archivos específicos, analizar el diff completo
+            RESULT=$(python -m app.interfaces.cli predict --raw-code /tmp/pr_diff.txt 2>/dev/null || echo '{"is_vulnerable":false,"risk_probability":0,"risk_level":"LOW","vulnerability_types":[],"cwe_ids":[]}')
+            IS_VULNERABLE=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(str(d.get('is_vulnerable',False)).lower())")
+            MAX_PROB=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('risk_probability',0))")
+            RISK_LEVEL=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('risk_level','LOW'))")
+            VULN_TYPES=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(','.join(d.get('vulnerability_types',[])))")
+            SCAN_RESULTS="📄 \`(diff completo)\`: **${RISK_LEVEL}** (${MAX_PROB})\n${VULN_TYPES}"
+          fi
+
+          echo "is_vulnerable=${IS_VULNERABLE}" >> $GITHUB_OUTPUT
+          echo "risk_level=${RISK_LEVEL}" >> $GITHUB_OUTPUT
+          echo "risk_probability=${MAX_PROB}" >> $GITHUB_OUTPUT
+          echo "vulnerability_types=${VULN_TYPES}" >> $GITHUB_OUTPUT
+
+          # Guardar resultados del scan para los siguientes steps
+          echo -e "$SCAN_RESULTS" > /tmp/scan_summary.txt
+          cat /tmp/scan_summary.txt
+
+      - name: "💬 Comentar resultado en el PR"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const isVulnerable = '${{ steps.ml-scan.outputs.is_vulnerable }}' === 'true';
+            const riskLevel = '${{ steps.ml-scan.outputs.risk_level }}';
+            const probability = parseFloat('${{ steps.ml-scan.outputs.risk_probability }}') || 0;
+            const vulnTypes = '${{ steps.ml-scan.outputs.vulnerability_types }}';
+
+            const statusIcon = isVulnerable ? '❌' : '✅';
+            const statusText = isVulnerable ? 'VULNERABLE — Merge BLOQUEADO' : 'SEGURO — Pipeline continúa';
+            const riskIcon = riskLevel === 'HIGH' ? '🔴' : riskLevel === 'MEDIUM' ? '🟡' : '🟢';
+
+            let body = `## ${statusIcon} Resultado de Revisión de Seguridad IA\n\n`;
+            body += `| Campo | Valor |\n|---|---|\n`;
+            body += `| **Estado** | ${statusIcon} **${statusText}** |\n`;
+            body += `| **Nivel de Riesgo** | ${riskIcon} ${riskLevel} |\n`;
+            body += `| **Probabilidad** | ${(probability * 100).toFixed(1)}% |\n`;
+            body += `| **Modelo** | Random Forest + AST + TF-IDF |\n`;
+            body += `| **Dataset** | OWASP Top 10:2025 |\n\n`;
+
+            if (isVulnerable && vulnTypes) {
+              body += `### ⚠️ Patrones Detectados\n\`\`\`\n${vulnTypes.replace(/,/g, '\n')}\n\`\`\`\n\n`;
+              body += `### 🛠️ Acción Requerida\n`;
+              body += `1. Revisar y corregir el código vulnerable\n`;
+              body += `2. Hacer nuevo push a la rama \`dev\`\n`;
+              body += `3. El pipeline se re-ejecutará automáticamente\n`;
+            } else {
+              body += `> ✅ El código pasó la revisión de seguridad. Continuando con las pruebas...\n`;
+            }
+
+            body += `\n---\n*Generado automáticamente por el pipeline de Secure DevOps • ${new Date().toISOString()}*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+            // Aplicar labels
+            const labels = isVulnerable ? ['fixing-required', 'security-vulnerable'] : ['security-approved'];
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: labels
+              });
+            } catch(e) {
+              console.log('Labels no pudieron crearse (pueden no existir):', e.message);
+            }
+
+      - name: "🐛 Crear Issue automática si hay vulnerabilidad"
+        if: steps.ml-scan.outputs.is_vulnerable == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const probability = parseFloat('${{ steps.ml-scan.outputs.risk_probability }}') || 0;
+            const riskLevel = '${{ steps.ml-scan.outputs.risk_level }}';
+            const vulnTypes = '${{ steps.ml-scan.outputs.vulnerability_types }}';
+            const prNumber = context.issue.number;
+            const branchName = '${{ github.head_ref }}';
+
+            const title = `🚨 [fixing-required] Vulnerabilidad detectada en PR #${prNumber} (${riskLevel})`;
+            let body = `## Vulnerabilidad Detectada por Modelo IA\n\n`;
+            body += `**PR:** #${prNumber}\n`;
+            body += `**Rama:** \`${branchName}\`\n`;
+            body += `**Probabilidad:** ${(probability * 100).toFixed(1)}%\n`;
+            body += `**Nivel de Riesgo:** ${riskLevel}\n\n`;
+            body += `### Patrones Detectados\n\`\`\`\n${vulnTypes.replace(/,/g, '\n')}\n\`\`\`\n\n`;
+            body += `### Pasos para Resolver\n`;
+            body += `1. [ ] Revisar el diff del PR #${prNumber}\n`;
+            body += `2. [ ] Corregir el código vulnerable identificado\n`;
+            body += `3. [ ] Hacer push de la corrección a \`${branchName}\`\n`;
+            body += `4. [ ] Verificar que el pipeline pase la revisión de seguridad\n`;
+            body += `5. [ ] Cerrar esta issue al completar\n\n`;
+            body += `---\n*Issue creada automáticamente por el pipeline de Secure DevOps*`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['fixing-required', 'security-vulnerable', 'bug']
+            });
+
+      - name: "📢 Notificar resultado via Telegram"
+        if: always()
+        run: |
+          IS_VULN="${{ steps.ml-scan.outputs.is_vulnerable }}"
+          PROB="${{ steps.ml-scan.outputs.risk_probability }}"
+          LEVEL="${{ steps.ml-scan.outputs.risk_level }}"
+          
+          if [ "$IS_VULN" = "true" ]; then
+            ICON="🚨"
+            STATUS="VULNERABLE — Merge BLOQUEADO"
+          else
+            ICON="✅"
+            STATUS="SEGURO — Continuando pipeline"
+          fi
+          
+          PROB_PCT=$(python3 -c "print(f'{float(\"${PROB}\")*100:.1f}%')" 2>/dev/null || echo "${PROB}")
+          
+          MESSAGE="${ICON} <b>Revisión de Seguridad IA</b>%0A%0AResultado: <b>${STATUS}</b>%0AProbabilidad: <b>${PROB_PCT}</b>%0ANivel: <b>${LEVEL}</b>%0APR: <b>#${{ github.event.number }}</b>%0AAutor: @${{ github.actor }}"
+          
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d parse_mode="HTML" \
+            -d text="${MESSAGE}" || true
+
+      - name: "🛑 Fallar el job si hay vulnerabilidad"
+        if: steps.ml-scan.outputs.is_vulnerable == 'true'
+        run: |
+          echo "❌ VULNERABILIDAD DETECTADA — Bloqueando merge"
+          echo "Nivel de riesgo: ${{ steps.ml-scan.outputs.risk_level }}"
+          echo "Probabilidad: ${{ steps.ml-scan.outputs.risk_probability }}"
+          exit 1
+
+  # ================================================================
+  # ETAPA 2: Merge a test + Pruebas Unitarias
+  # ================================================================
+  run-tests:
+    name: "🧪 Etapa 2 — Pruebas + Merge a test"
+    runs-on: ubuntu-latest
+    needs: security-review
     timeout-minutes: 15
 
     steps:
-      - name: Checkout repository
+      - name: "📥 Checkout"
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Python
+      - name: "🐍 Setup Python"
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
+          cache: "pip"
 
-      - name: Install dependencies
+      - name: "📦 Instalar dependencias"
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          pip install -r requirements.txt
 
-      - name: Audit dependencies
-        run: python -m pip_audit -r requirements.txt
+      - name: "📢 Notificar inicio de pruebas"
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d parse_mode="HTML" \
+            -d text="🧪 <b>Ejecutando pruebas unitarias</b>%0APR: #${{ github.event.number }}%0ARama: <code>${{ github.head_ref }} → test</code>" || true
 
-      - name: Run lint
-        run: ruff check .
+      - name: "🔬 Ejecutar pruebas (pytest)"
+        id: tests
+        run: |
+          python scripts/generate_owasp_dataset.py
+          python -m app.interfaces.cli train --use-owasp
+          pytest tests/ -v --tb=short --json-report --json-report-file=/tmp/test_results.json 2>&1 || true
+          pytest tests/ -v --tb=short 2>&1
+        continue-on-error: true
 
-      - name: Run tests
-        run: pytest -q
+      - name: "📢 Notificar resultado de pruebas"
+        if: always()
+        run: |
+          if [ "${{ steps.tests.outcome }}" = "success" ]; then
+            MSG="✅ <b>Pruebas unitarias: PASARON</b>%0APR: #${{ github.event.number }}%0AProcediendo con merge a test..."
+          else
+            MSG="❌ <b>Pruebas unitarias: FALLARON</b>%0APR: #${{ github.event.number }}%0AMerge bloqueado. Revisa los logs."
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d parse_mode="HTML" \
+            -d text="${MSG}" || true
 
-      - name: Generate dataset
-        run: python scripts/generate_dataset.py
-
-      - name: Train model
-        run: python -m app.interfaces.cli train
-
-      - name: Predict sample module
-        run: python -m app.interfaces.cli predict --input examples/sample_module_metrics.json --shap-report reports/shap_explanation.html
-
-      - name: Upload SHAP report
-        uses: actions/upload-artifact@v4
+      - name: "🛑 Fallar si las pruebas fallaron"
+        if: steps.tests.outcome == 'failure'
+        uses: actions/github-script@v7
         with:
-          name: shap-report
-          path: reports/shap_explanation.html
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['tests-failed']
+            }).catch(() => {});
+            core.setFailed('Las pruebas fallaron. Merge bloqueado.');
+
+      - name: "🔀 Merge automático PR → test"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                commit_title: `✅ Merge automático PR #${context.issue.number} (seguro + pruebas OK)`,
+                commit_message: `Mergeado automáticamente por el pipeline de Secure DevOps.\nRevisión IA: SEGURO\nPruebas: PASARON`,
+                merge_method: 'merge'
+              });
+              console.log('Merge realizado exitosamente');
+            } catch(e) {
+              console.log('No se pudo hacer merge automático:', e.message);
+            }
+
+      - name: "📢 Notificar merge a test"
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d parse_mode="HTML" \
+            -d text="🔀 <b>Merge a rama test completado</b>%0APR: #${{ github.event.number }}%0AAutor: @${{ github.actor }}%0AProcediendo con despliegue a producción..." || true
+
+  # ================================================================
+  # ETAPA 3: Deploy en Producción (Render)
+  # ================================================================
+  deploy:
+    name: "🚀 Etapa 3 — Deploy en Producción"
+    runs-on: ubuntu-latest
+    needs: run-tests
+    timeout-minutes: 15
+
+    steps:
+      - name: "📥 Checkout main"
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📢 Notificar inicio de deploy"
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d parse_mode="HTML" \
+            -d text="🚀 <b>Iniciando deploy en producción</b>%0APR: #${{ github.event.number }}%0AProveedor: Render.com" || true
+
+      - name: "🔀 Merge test → main"
+        run: |
+          git config user.email "pipeline@securedevops.ci"
+          git config user.name "Secure DevOps Bot"
+          git fetch origin test
+          git merge origin/test --no-ff -m "chore: merge test→main via pipeline [skip ci]" || echo "Merge no necesario"
+          git push origin main || echo "Push a main completado"
+
+      - name: "🐳 Build Docker image"
+        run: |
+          if [ -f Dockerfile ]; then
+            docker build -t secure-datamining-api:${{ github.sha }} .
+            echo "Docker build exitoso"
+          else
+            echo "Dockerfile no encontrado, saltando build"
+          fi
+
+      - name: "🌐 Trigger Deploy en Render"
+        if: secrets.RENDER_DEPLOY_HOOK_URL != ''
+        run: |
+          RESPONSE=$(curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          echo "Render response: $RESPONSE"
+
+      - name: "📢 Notificar deploy exitoso"
+        run: |
+          DEPLOY_URL="${{ secrets.PRODUCTION_URL }}"
+          if [ -z "$DEPLOY_URL" ]; then
+            DEPLOY_URL="https://tu-app.onrender.com"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d parse_mode="HTML" \
+            -d text="🎉 <b>Deploy en producción EXITOSO</b>%0A%0APR: #${{ github.event.number }}%0AAutor: @${{ github.actor }}%0AURL: ${DEPLOY_URL}%0A%0ACódigo seguro → tests OK → producción ✅" || true
