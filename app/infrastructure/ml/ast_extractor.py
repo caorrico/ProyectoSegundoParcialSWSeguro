@@ -43,7 +43,7 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
             
         return np.array(features)
 
-    def _extract_stats(self, node):
+    def _extract_stats(self, root_node):
         stats = {
             "node_count": 0,
             "max_depth": 0,
@@ -52,33 +52,37 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
             "loops": 0,
             "if_statements": 0
         }
-        self._traverse(node, 0, stats)
-        return stats
-
-    def _traverse(self, node, current_depth, stats):
-        stats["node_count"] += 1
-        stats["max_depth"] = max(stats["max_depth"], current_depth)
-
-        node_type = node.type
         
-        # Pointers/References in C/C++
-        if node_type in ["pointer_declarator", "reference_declarator", "pointer_expression"]:
-            stats["pointer_ops"] += 1
+        # Iterative traversal using a stack
+        stack = [(root_node, 0)]
+        while stack:
+            node, depth = stack.pop()
             
-        # Function calls
-        if node_type in ["call_expression", "method_invocation"]:
-            stats["function_calls"] += 1
-            
-        # Loops
-        if node_type in ["while_statement", "for_statement", "do_statement"]:
-            stats["loops"] += 1
-            
-        # Conditionals
-        if node_type in ["if_statement"]:
-            stats["if_statements"] += 1
+            stats["node_count"] += 1
+            stats["max_depth"] = max(stats["max_depth"], depth)
 
-        for child in node.children:
-            self._traverse(child, current_depth + 1, stats)
+            node_type = node.type
+            
+            # Pointers/References in C/C++
+            if node_type in ["pointer_declarator", "reference_declarator", "pointer_expression"]:
+                stats["pointer_ops"] += 1
+                
+            # Function calls
+            if node_type in ["call_expression", "method_invocation"]:
+                stats["function_calls"] += 1
+                
+            # Loops
+            if node_type in ["while_statement", "for_statement", "do_statement"]:
+                stats["loops"] += 1
+                
+            # Conditionals
+            if node_type in ["if_statement"]:
+                stats["if_statements"] += 1
+
+            for child in node.children:
+                stack.append((child, depth + 1))
+                
+        return stats
 
     def get_feature_names_out(self, input_features=None):
         return np.array([

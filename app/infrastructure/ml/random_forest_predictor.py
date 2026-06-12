@@ -25,8 +25,60 @@ class RandomForestPredictor:
             features = pd.DataFrame([metrics.to_feature_dict()])[list(CodeModuleMetrics.FEATURE_NAMES)]
             
         probability = float(model.predict_proba(features)[0][1])
-        is_vulnerable = probability >= 0.70
+        is_vulnerable = probability >= 0.50
         return is_vulnerable, probability
+
+    def get_top_features(self, metrics: Union[CodeModuleMetrics, RawCodeModule], top_n: int = 3) -> list[str]:
+        import numpy as np
+
+        if not self._model_path.exists():
+            return []
+
+        try:
+            model = joblib.load(self._model_path)
+            is_syntactic = isinstance(metrics, RawCodeModule)
+            
+            if is_syntactic:
+                features_raw = pd.Series([metrics.raw_code])
+                feature_union = model.named_steps["features"]
+                rf = model.named_steps["clf"]
+                features_transformed = feature_union.transform(features_raw)
+                feature_names = feature_union.get_feature_names_out()
+                if hasattr(features_transformed, "toarray"):
+                    features_transformed = features_transformed.toarray()
+                features = pd.DataFrame(features_transformed, columns=feature_names)
+                explainer_model = rf
+            else:
+                features = pd.DataFrame([metrics.to_feature_dict()])[list(CodeModuleMetrics.FEATURE_NAMES)]
+                feature_names = list(CodeModuleMetrics.FEATURE_NAMES)
+                explainer_model = model
+
+            import shap
+            # Mandatory SHAP with approximate=True for speed
+            explainer = shap.TreeExplainer(explainer_model)
+            shap_values = explainer.shap_values(features, approximate=True)
+
+            if isinstance(shap_values, list):
+                sv = shap_values[1][0]
+            elif isinstance(shap_values, np.ndarray) and len(shap_values.shape) == 3:
+                sv = shap_values[0, :, 1]
+            else:
+                sv = shap_values[0]
+
+            # Get indices of top positive SHAP values
+            top_indices = np.argsort(sv)[-top_n:][::-1]
+            
+            top_features_names = []
+            for idx in top_indices:
+                if sv[idx] > 0: # Only include features that positively contributed
+                    name = feature_names[idx]
+                    name = name.replace("tfidf__", "").replace("ast__ast_", "ast_")
+                    top_features_names.append(name)
+                    
+            return top_features_names if top_features_names else ["No specific SHAP features isolated"]
+        except Exception as e:
+            print(f"Error in feature explainability: {e}")
+            return ["Explainability unavailable"]
 
     def generate_explanation(self, metrics: Union[CodeModuleMetrics, RawCodeModule], report_path: Path) -> None:
         import shap
@@ -42,7 +94,7 @@ class RandomForestPredictor:
         if is_syntactic:
             features_raw = pd.Series([metrics.raw_code])
             feature_union = model.named_steps["features"]
-            rf = model.named_steps["rf"]
+            rf = model.named_steps["clf"]
             features_transformed = feature_union.transform(features_raw)
             feature_names = feature_union.get_feature_names_out()
             if hasattr(features_transformed, "toarray"):

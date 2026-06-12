@@ -20,10 +20,25 @@ from app.infrastructure.repositories.d2a_dataset_repository import D2ADatasetRep
 from app.infrastructure.repositories.reveal_dataset_repository import ReVealDatasetRepository
 from app.infrastructure.repositories.vulberta_dataset_repository import VulBERTaDatasetRepository
 
+class OWASPDatasetRepository:
+    def __init__(self, path: Path):
+        self.path = path
+        
+    def load(self):
+        import json
+        records = []
+        with open(self.path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    records.append(json.loads(line))
+        return records
+
 def build_train_use_case(
-    use_megavul: bool, language: str, use_codexglue: bool, use_combined: bool, use_d2a: bool, use_reveal: bool, use_vulberta: bool, use_deep_learning: bool = False
+    use_megavul: bool, language: str, use_codexglue: bool, use_combined: bool, use_d2a: bool, use_reveal: bool, use_vulberta: bool, use_owasp: bool, use_deep_learning: bool = False
 ) -> TrainVulnerabilityModelUseCase:
-    if use_combined:
+    if use_owasp:
+        repository = OWASPDatasetRepository(Path("data/owasp2025/train.jsonl"))
+    elif use_combined:
         repository = CombinedDatasetRepository(limit_per_source=2000)
     elif use_vulberta:
         repository = VulBERTaDatasetRepository(settings.base_dir / "data" / "data" / "finetune" / "mvd" / "mvd_train.pkl")
@@ -66,10 +81,11 @@ def train_command(args: argparse.Namespace) -> None:
     use_d2a = getattr(args, "use_d2a", False)
     use_reveal = getattr(args, "use_reveal", False)
     use_vulberta = getattr(args, "use_vulberta", False)
+    use_owasp = getattr(args, "use_owasp", False)
     use_deep_learning = getattr(args, "use_deep_learning", False)
     tune = getattr(args, "tune", False)
     language = getattr(args, "language", "c_cpp")
-    metrics = build_train_use_case(use_megavul, language, use_codexglue, use_combined, use_d2a, use_reveal, use_vulberta, use_deep_learning).execute(tune=tune)
+    metrics = build_train_use_case(use_megavul, language, use_codexglue, use_combined, use_d2a, use_reveal, use_vulberta, use_owasp, use_deep_learning).execute(tune=tune)
     print(json.dumps({"status": "trained", "metrics": metrics}, indent=2))
 
 
@@ -101,6 +117,91 @@ def _read_json(path: Path) -> Dict[str, Any]:
     return payload
 
 
+def scan_command(args: argparse.Namespace) -> None:
+    """Scan an entire project directory for vulnerabilities."""
+    import os
+    from app.domain.entities import RawCodeModule
+
+    target_dir = Path(args.directory)
+    if not target_dir.is_dir():
+        raise ValueError(f"'{target_dir}' is not a valid directory.")
+
+    extensions = {".c", ".cpp", ".h", ".hpp", ".cc", ".cxx", ".java", ".py", ".js", ".ts", ".go", ".rs"}
+    exclude_dirs = {".git", "node_modules", ".venv", "__pycache__", "venv", "build", "dist", ".tox"}
+
+    use_case = build_predict_use_case()
+    results = []
+
+    # Collect all source files
+    source_files = []
+    for root, dirs, files in os.walk(target_dir):
+        dirs[:] = [d for d in dirs if d not in exclude_dirs]
+        for f in files:
+            if Path(f).suffix.lower() in extensions:
+                source_files.append(Path(root) / f)
+
+    if not source_files:
+        print(f"No source files found in '{target_dir}'.")
+        return
+
+    print(f"\n{'='*70}")
+    print(f"  VULNERABILITY SCAN REPORT")
+    print(f"  Target: {target_dir.resolve()}")
+    print(f"  Files to scan: {len(source_files)}")
+    print(f"{'='*70}\n")
+
+    for i, file_path in enumerate(source_files, 1):
+        try:
+            code = file_path.read_text(encoding="utf-8", errors="replace")
+            metrics = RawCodeModule(raw_code=code)
+            prediction = use_case.execute(metrics)
+            rel_path = file_path.relative_to(target_dir)
+
+            risk_icon = "[!!!]" if prediction.risk_level.value == "HIGH" else ("[??]" if prediction.risk_level.value == "MEDIUM" else "[OK]")
+            prob_pct = f"{prediction.risk_probability * 100:.1f}%"
+
+            results.append({
+                "file": str(rel_path),
+                "is_vulnerable": prediction.is_vulnerable,
+                "risk_probability": prediction.risk_probability,
+                "risk_level": prediction.risk_level.value,
+            })
+
+            print(f"  [{i:3d}/{len(source_files)}] {risk_icon} {prediction.risk_level.value:6s} ({prob_pct:>6s}) | {rel_path}")
+
+        except Exception as e:
+            print(f"  [{i:3d}/{len(source_files)}] [ERR] ERROR | {file_path.relative_to(target_dir)} - {e}")
+
+    # Summary
+    total = len(results)
+    high = sum(1 for r in results if r["risk_level"] == "HIGH")
+    medium = sum(1 for r in results if r["risk_level"] == "MEDIUM")
+    low = sum(1 for r in results if r["risk_level"] == "LOW")
+    vulnerable = sum(1 for r in results if r["is_vulnerable"])
+
+    print(f"\n{'='*70}")
+    print(f"  SCAN SUMMARY")
+    print(f"{'='*70}")
+    print(f"  Total files scanned : {total}")
+    print(f"  [!!!] HIGH risk     : {high}")
+    print(f"  [??]  MEDIUM risk   : {medium}")
+    print(f"  [OK]  LOW risk      : {low}")
+    print(f"  Vulnerable files    : {vulnerable}/{total} ({vulnerable/total*100:.1f}%)" if total > 0 else "")
+    print(f"{'='*70}\n")
+
+    # Save JSON report
+    report_path = target_dir / "vulnerability_scan_report.json"
+    report = {
+        "target": str(target_dir.resolve()),
+        "total_files": total,
+        "vulnerable_files": vulnerable,
+        "summary": {"high": high, "medium": medium, "low": low},
+        "details": results,
+    }
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print(f"  Full report saved to: {report_path}\n")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Secure data mining vulnerability predictor")
     subparsers = parser.add_subparsers(required=True)
@@ -112,6 +213,7 @@ def main() -> None:
     train_parser.add_argument("--use-d2a", action="store_true", help="Use IBM D2A vulnerability dataset")
     train_parser.add_argument("--use-reveal", action="store_true", help="Use ReVeal (Chromium/Debian) vulnerability dataset")
     train_parser.add_argument("--use-vulberta", action="store_true", help="Use VulBERTa dataset")
+    train_parser.add_argument("--use-owasp", action="store_true", help="Use generated OWASP Top 10 2025 dataset")
     train_parser.add_argument("--use-deep-learning", action="store_true", help="Use VulBERTa Deep Learning model instead of Random Forest")
     train_parser.add_argument("--tune", action="store_true", help="Perform hyperparameter tuning to find the best model configuration")
     train_parser.add_argument("--language", default="c_cpp", choices=["c_cpp", "java"], help="Language dataset to use for MegaVul")
@@ -122,6 +224,10 @@ def main() -> None:
     predict_parser.add_argument("--raw-code", required=False, help="Path to a source code file (.c, .cpp, etc.) for syntactic prediction")
     predict_parser.add_argument("--shap-report", required=False, help="Path to output SHAP HTML report")
     predict_parser.set_defaults(func=predict_command)
+
+    scan_parser = subparsers.add_parser("scan", help="Scan an entire project directory for vulnerabilities")
+    scan_parser.add_argument("directory", help="Path to the project directory to scan")
+    scan_parser.set_defaults(func=scan_command)
 
     args = parser.parse_args()
     try:

@@ -61,9 +61,11 @@ class VulBERTaWrapper(BaseEstimator, ClassifierMixin):
                 # 2000 chars is usually safe for 512 tokens
                 result = self.pipe_(str(code_snippet))[0]
                 # Assuming the model returns labels like 'LABEL_1' (Vulnerable) or 'LABEL_0' (Safe)
-                # or '1' / '0'. We map it to int.
-                label = result['label']
-                if '1' in label or label.lower() == 'vulnerable' or label.lower() == 'true':
+                # or 'vulnerable' / 'non-vulnerable'. We map it to int.
+                label = result['label'].lower()
+                is_vulnerable = ('1' in label) or ('vulnerable' in label and 'non' not in label) or ('true' in label)
+                
+                if is_vulnerable:
                     predictions.append(1)
                 else:
                     predictions.append(0)
@@ -81,10 +83,10 @@ class VulBERTaWrapper(BaseEstimator, ClassifierMixin):
         for code_snippet in X:
             try:
                 result = self.pipe_(str(code_snippet))[0]
-                label = result['label']
+                label = result['label'].lower()
                 score = result['score']
                 
-                is_vulnerable = '1' in label or label.lower() == 'vulnerable' or label.lower() == 'true'
+                is_vulnerable = ('1' in label) or ('vulnerable' in label and 'non' not in label) or ('true' in label)
                 
                 if is_vulnerable:
                     probabilities.append([1.0 - score, score])

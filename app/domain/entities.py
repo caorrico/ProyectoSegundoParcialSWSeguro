@@ -73,6 +73,8 @@ class VulnerabilityPrediction:
     risk_probability: float
     risk_level: RiskLevel
     recommendation: str
+    vulnerability_types: list[str]
+    cwe_ids: list[str]
 
     def __post_init__(self) -> None:
         if not 0 <= self.risk_probability <= 1:
@@ -84,4 +86,6 @@ class VulnerabilityPrediction:
             "risk_probability": round(self.risk_probability, 4),
             "risk_level": self.risk_level.value,
             "recommendation": self.recommendation,
+            "vulnerability_types": self.vulnerability_types,
+            "cwe_ids": self.cwe_ids,
         }
