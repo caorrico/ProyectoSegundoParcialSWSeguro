@@ -3,7 +3,7 @@ from pathlib import Path
 from app.domain.contracts import Dataset, DatasetRepository
 
 class MegaVulDatasetRepository(DatasetRepository):
-    def __init__(self, dataset_path: Path, limit: int = 500):
+    def __init__(self, dataset_path: Path, limit: int | None = None):
         self._dataset_path = dataset_path
         self._limit = limit
 
@@ -16,7 +16,7 @@ class MegaVulDatasetRepository(DatasetRepository):
             items = ijson.items(f, "item")
             count = 0
             for item in items:
-                if count >= self._limit:
+                if self._limit is not None and count >= self._limit:
                     break
                 
                 # Vulnerable version (func_before)

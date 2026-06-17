@@ -9,12 +9,19 @@ from app.infrastructure.repositories.codexglue_dataset_repository import CodeXGL
 from app.infrastructure.repositories.d2a_dataset_repository import D2ADatasetRepository
 from app.infrastructure.repositories.reveal_dataset_repository import ReVealDatasetRepository
 from app.infrastructure.repositories.vulberta_dataset_repository import VulBERTaDatasetRepository
+from app.infrastructure.repositories.cvefixes_dataset_repository import CVEFixesDatasetRepository
 
 
 class CombinedDatasetRepository(DatasetRepository):
     """Loads and merges multiple vulnerability datasets."""
 
-    def __init__(self, limit_per_source: int = 2000):
+    def __init__(self, limit_per_source: int | None = None):
+        """
+        Initialize the combined dataset repository.
+        
+        Args:
+            limit_per_source: Maximum number of samples per source (None = use all data)
+        """
         self._limit_per_source = limit_per_source
 
     def load(self) -> Dataset:
@@ -85,6 +92,22 @@ class CombinedDatasetRepository(DatasetRepository):
                 combined.extend(data)
             except Exception as e:
                 print(f"  [WARN] VulBERTa failed: {e}")
+                
+        # 7. CVEFixes
+        cvefixes_path = Path("data/CVEFixes.csv/CVEFixes.csv")
+        if cvefixes_path.exists():
+            try:
+                repo = CVEFixesDatasetRepository(cvefixes_path)
+                data = repo.load()
+                # Optionally limit CVEFixes too (since it's large)
+                if self._limit_per_source and len(data) > self._limit_per_source:
+                    import random
+                    random.shuffle(data)
+                    data = data[:self._limit_per_source]
+                print(f"  [COMBINED] CVEFixes: {len(data)} samples loaded")
+                combined.extend(data)
+            except Exception as e:
+                print(f"  [WARN] CVEFixes failed: {e}")
 
         if not combined:
             raise RuntimeError("No datasets found. Please download at least one dataset first.")
