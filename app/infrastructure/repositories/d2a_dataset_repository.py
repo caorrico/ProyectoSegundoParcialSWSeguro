@@ -38,10 +38,13 @@ class D2ADatasetRepository(DatasetRepository):
                     label = item.get("label", 0) or item.get("target", 0)
 
                     if code and len(code) > 20:
-                        dataset.append({
+                        sample = {
                             "raw_code": code,
                             "is_vulnerable": int(label)
-                        })
+                        }
+                        if "id" in item:
+                            sample["id"] = item["id"]
+                        dataset.append(sample)
                         count += 1
                 except json.JSONDecodeError:
                     continue

@@ -25,10 +25,18 @@ class CodeXGLUEDatasetRepository(DatasetRepository):
                     is_vulnerable = item.get("target", 0)
                     
                     if code:
-                        dataset.append({
+                        sample = {
                             "raw_code": code,
                             "is_vulnerable": int(is_vulnerable)
-                        })
+                        }
+                        # Add extra fields if available
+                        if "id" in item:
+                            sample["id"] = item["id"]
+                        if "project" in item:
+                            sample["project"] = item["project"]
+                        if "commit_id" in item:
+                            sample["commit_id"] = item["commit_id"]
+                        dataset.append(sample)
                         count += 1
                 except json.JSONDecodeError:
                     continue
