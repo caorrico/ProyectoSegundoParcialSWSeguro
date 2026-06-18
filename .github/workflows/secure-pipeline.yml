@@ -36,6 +36,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      - name: Validate code before scan
+        run: |
+          python -m ruff check .
+          python -m pytest -q
+
       - name: Notify security review start
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -223,8 +228,14 @@ jobs:
         run: docker build -t secure-datamining-api:${{ github.sha }} .
 
       - name: Trigger Render deploy
-        if: secrets.RENDER_DEPLOY_HOOK_URL != ''
-        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL is not configured; skipping Render deploy."
+            exit 0
+          fi
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
 
       - name: Notify deploy result
         if: always()

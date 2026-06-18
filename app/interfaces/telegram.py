@@ -5,7 +5,6 @@ Permite enviar código fuente y obtener predicciones de vulnerabilidades directa
 """
 import asyncio
 import os
-import json
 from pathlib import Path
 
 # Fix for Windows asyncio event loop policy
@@ -127,7 +126,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 def main() -> None:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
-        token = "8747896514:AAEBVfNWJa108ebovxu5FHmz-aYoTbyzu9w"  # Default token from user's message
+        raise RuntimeError("TELEGRAM_BOT_TOKEN is required to start the Telegram bot.")
 
     application = Application.builder().token(token).build()
 

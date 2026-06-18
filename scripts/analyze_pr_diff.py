@@ -40,7 +40,7 @@ def main() -> None:
     parser.add_argument("--head-ref", default="HEAD", help="Head git ref for diff detection")
     parser.add_argument("--changed-files", help="Text file with one changed path per line")
     parser.add_argument("--output", default="reports/pr_security_scan.json", help="JSON report path")
-    parser.add_argument("--threshold", type=float, default=0.50, help="Vulnerability probability threshold")
+    parser.add_argument("--threshold", type=float, default=0.90, help="Vulnerability probability threshold")
     parser.add_argument("--allow-missing-model", action="store_true", help="Return UNKNOWN instead of failing if model is missing")
     args = parser.parse_args()
 
@@ -95,19 +95,22 @@ def analyze_files(
 
         prediction, probability = predictor.predict(RawCodeModule(code))
         probability = round(float(probability), 4)
-        is_vulnerable = prediction or probability >= threshold
+        vulnerability_types, cwe_ids, recommendations = CodeAnalyzer.analyze_raw_code(code)
+        feature_summary = extract_code_features(code, path)
+        rule_vulnerable = bool(
+            vulnerability_types or cwe_ids or feature_summary.suspicious_patterns
+        )
+        is_vulnerable = rule_vulnerable or probability >= threshold
         max_probability = max(max_probability, probability)
         if is_vulnerable:
             vulnerable_count += 1
 
-        vulnerability_types, cwe_ids, recommendations = CodeAnalyzer.analyze_raw_code(code)
-        feature_summary = extract_code_features(code, path)
         analyzed.append(
             {
                 "path": str(path.as_posix()),
                 "status": "VULNERABLE" if is_vulnerable else "SAFE",
                 "probability": probability,
-                "risk_level": _risk_level(probability),
+                "risk_level": _risk_level(probability) if is_vulnerable else "LOW",
                 "vulnerability_types": vulnerability_types,
                 "cwe_ids": cwe_ids,
                 "recommendations": recommendations,
@@ -132,7 +135,11 @@ def analyze_files(
 def _load_changed_files(changed_files: str | None, base_ref: str, head_ref: str) -> list[Path]:
     if changed_files:
         path = Path(changed_files)
-        return [Path(line.strip()) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        return [
+            Path(line.strip().lstrip("\ufeff"))
+            for line in path.read_text(encoding="utf-8-sig").splitlines()
+            if line.strip()
+        ]
 
     command = ["git", "diff", "--name-only", f"{base_ref}...{head_ref}"]
     result = subprocess.run(command, check=True, capture_output=True, text=True)

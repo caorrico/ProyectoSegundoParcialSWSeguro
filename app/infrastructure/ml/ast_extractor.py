@@ -1,32 +1,19 @@
-import numpy as np
 import re
+
+import numpy as np
 import tree_sitter
 import tree_sitter_cpp
 import tree_sitter_java
 from sklearn.base import BaseEstimator, TransformerMixin
 
-class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
-    def __init__(self):
-        pass
 
+class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-<<<<<<< HEAD
         cpp_parser = self._build_parser(tree_sitter_cpp.language)
         java_parser = self._build_parser(tree_sitter_java.language)
-=======
-        # Create Language objects with (ptr, name)
-        cpp_lang = tree_sitter.Language(tree_sitter_cpp.language(), "cpp")
-        java_lang = tree_sitter.Language(tree_sitter_java.language(), "java")
-        
-        # Create parsers and set languages
-        cpp_parser = tree_sitter.Parser()
-        cpp_parser.set_language(cpp_lang)
-        java_parser = tree_sitter.Parser()
-        java_parser.set_language(java_lang)
->>>>>>> 65ec38926cbd8ebcd48a7bd65f8f809adddfe04e
 
         features = []
         for code in X:
@@ -34,7 +21,7 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
                 code = ""
 
             # Simple heuristic to detect Java
-            if re.search(r'\b(public\s+class|import\s+java)\b', code):
+            if re.search(r"\b(public\s+class|import\s+java)\b", code):
                 parser = java_parser
             else:
                 parser = cpp_parser
@@ -42,14 +29,16 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
             tree = parser.parse(bytes(code, "utf8"))
 
             stats = self._extract_stats(tree.root_node)
-            features.append([
-                stats.get("node_count", 0),
-                stats.get("max_depth", 0),
-                stats.get("pointer_ops", 0),
-                stats.get("function_calls", 0),
-                stats.get("loops", 0),
-                stats.get("if_statements", 0)
-            ])
+            features.append(
+                [
+                    stats.get("node_count", 0),
+                    stats.get("max_depth", 0),
+                    stats.get("pointer_ops", 0),
+                    stats.get("function_calls", 0),
+                    stats.get("loops", 0),
+                    stats.get("if_statements", 0),
+                ]
+            )
 
         return np.array(features)
 
@@ -69,7 +58,7 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
             "pointer_ops": 0,
             "function_calls": 0,
             "loops": 0,
-            "if_statements": 0
+            "if_statements": 0,
         }
 
         # Iterative traversal using a stack
@@ -104,11 +93,13 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
         return stats
 
     def get_feature_names_out(self, input_features=None):
-        return np.array([
-            "ast_node_count",
-            "ast_max_depth",
-            "ast_pointer_ops",
-            "ast_function_calls",
-            "ast_loops",
-            "ast_if_statements"
-        ])
+        return np.array(
+            [
+                "ast_node_count",
+                "ast_max_depth",
+                "ast_pointer_ops",
+                "ast_function_calls",
+                "ast_loops",
+                "ast_if_statements",
+            ]
+        )
