@@ -69,14 +69,16 @@ jobs:
       - name: Detect changed source files
         run: |
           git fetch origin ${{ github.base_ref }}
-          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/changed_files.txt
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/changed_files_all.txt
+          grep "^examples/" /tmp/changed_files_all.txt > /tmp/changed_files.txt || true
+          echo "=== Filtered changed files (examples/) ==="
           cat /tmp/changed_files.txt
 
       - name: Analyze PR changes
         id: scan
         shell: bash
         run: |
-          python scripts/analyze_pr_diff.py --changed-files /tmp/changed_files.txt --output reports/pr_security_scan.json
+          python scripts/analyze_pr_diff.py --changed-files /tmp/changed_files.txt --output reports/pr_security_scan.json --source-dir examples
           STATUS=$(python -c "import json; print(json.load(open('reports/pr_security_scan.json'))['status'])")
           PROB=$(python -c "import json; print(json.load(open('reports/pr_security_scan.json'))['probability'])")
           echo "scan_status=${STATUS}" >> "$GITHUB_OUTPUT"

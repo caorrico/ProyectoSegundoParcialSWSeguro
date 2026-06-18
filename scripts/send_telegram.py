@@ -20,13 +20,17 @@ def main() -> None:
         print("Telegram secrets not configured; skipping notification.")
         return
 
-    payload = urllib.parse.urlencode(
-        {"chat_id": chat_id, "text": args.message, "parse_mode": args.parse_mode}
-    ).encode("utf-8")
+    message = urllib.parse.unquote(args.message)
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": args.parse_mode,
+    }).encode("utf-8")
     request = urllib.request.Request(
         f"https://api.telegram.org/bot{token}/sendMessage",
         data=payload,
         method="POST",
+        headers={"Content-Type": "application/json"},
     )
     try:
         with urllib.request.urlopen(request, timeout=15) as response:

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -10,6 +10,7 @@ class Settings:
     metrics_report_path: Path = base_dir / "reports" / "metrics.json"
     random_state: int = 42
     test_size: float = 0.25
+    source_scan_dir: Path | None = field(default=None)
 
 
 settings = Settings()

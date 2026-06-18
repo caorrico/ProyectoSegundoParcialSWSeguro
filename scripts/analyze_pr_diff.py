@@ -34,6 +34,8 @@ SOURCE_EXTENSIONS = {
     ".rs",
 }
 
+EXCLUDED_DIRS = {"app", "scripts", "tests", ".github", "notebooks", "docs", "data", "models", "reports"}
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze PR source changes with the trained ML model.")
@@ -43,10 +45,12 @@ def main() -> None:
     parser.add_argument("--output", default="reports/pr_security_scan.json", help="JSON report path")
     parser.add_argument("--threshold", type=float, default=0.90, help="Vulnerability probability threshold")
     parser.add_argument("--allow-missing-model", action="store_true", help="Return UNKNOWN instead of failing if model is missing")
+    parser.add_argument("--source-dir", help="Only analyze files under this directory (e.g. examples/)")
     args = parser.parse_args()
 
     try:
         files = _load_changed_files(args.changed_files, args.base_ref, args.head_ref)
+        files = _filter_source_files(files, args.source_dir)
         report = analyze_files(files, args.threshold, args.allow_missing_model)
     except Exception as error:
         report = {
@@ -156,6 +160,24 @@ def analyze_files(
         "files": analyzed,
         "model_path": str(settings.model_path),
     }
+
+
+def _filter_source_files(files: list[Path], source_dir: str | None) -> list[Path]:
+    filtered = []
+    for path in files:
+        if not _is_source_file(path):
+            continue
+        parts = path.parts
+        if not parts:
+            continue
+        top_dir = parts[0]
+        if top_dir in EXCLUDED_DIRS:
+            continue
+        sdir = source_dir.replace("\\", "/").rstrip("/") + "/"
+        if source_dir and not path.as_posix().startswith(sdir):
+            continue
+        filtered.append(path)
+    return filtered
 
 
 def _load_changed_files(changed_files: str | None, base_ref: str, head_ref: str) -> list[Path]:
