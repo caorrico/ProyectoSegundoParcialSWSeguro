@@ -50,10 +50,10 @@ jobs:
 
       - name: Prepare model
         run: |
-          echo "Forcing re-training to ensure environment compatibility..."
-          python scripts/generate_owasp_dataset.py
-          python -m app.interfaces.cli train --use-owasp
-          echo "Model re-trained and compatible with CI/CD environment."
+          if [ ! -f models/vulnerability_model.joblib ]; then
+            python scripts/generate_owasp_dataset.py
+            python -m app.interfaces.cli train --use-owasp
+          fi
 
       - name: Detect changed source files
         run: |
@@ -114,33 +114,37 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            let report = {status: 'ERROR', probability: 0, details: 'Scan report unavailable', vulnerabilities: [], mitigation: []};
+            let report = {status: 'ERROR', probability: 0, details: 'Scan report unavailable', files: []};
             if (fs.existsSync('reports/pr_security_scan.json')) {
               report = JSON.parse(fs.readFileSync('reports/pr_security_scan.json', 'utf8'));
             }
             const body = [
-              `### ❌ Security Review Failed`,
-              `**Etapa:** ML Security Inference`,
-              `**Estado:** ${report.status}`,
-              `**Probabilidad de vulnerabilidad:** ${(report.probability * 100).toFixed(2)}%`,
-              `**Vulnerabilidades detectadas:** ${report.vulnerabilities && report.vulnerabilities.length > 0 ? report.vulnerabilities.join(', ') : 'Ninguna específica'}`,
-              `**Mitigación recomendada:** ${report.mitigation && report.mitigation.length > 0 ? report.mitigation.join('; ') : 'No disponible'}`,
+              `Security ML review result: **${report.status}**`,
+              `Probability: **${report.probability}**`,
               '',
-              '---',
-              'El merge está bloqueado. Por favor, revisa el código en las líneas reportadas y aplica las mitigaciones sugeridas antes de reintentar.'
+              report.details,
+              '',
+              'The merge is blocked until the vulnerable code is corrected.'
             ].join('\n');
             await github.rest.issues.createComment({
-              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
+              issue_number: context.issue.number,
               body
             });
             await github.rest.issues.addLabels({
-              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
+              issue_number: context.issue.number,
               labels: ['fixing-required']
             }).catch(() => {});
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[fixing-required] Security review failed for PR #${context.issue.number}`,
+              body,
+              labels: ['fixing-required', 'security-vulnerable']
+            });
 
       - name: Notify vulnerable result
         if: failure()
@@ -148,7 +152,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python scripts/send_telegram.py --message "❌ Pipeline bloqueado en etapa 'ML Security Inference' para PR #${{ github.event.number }}. Motivo: Código detectado como VULNERABLE. Revisa GitHub para detalles."
+          python scripts/send_telegram.py --message "Security review blocked PR #${{ github.event.number }}. Check GitHub for details."
 
   tests-and-merge-test:
     name: Tests and merge to test
