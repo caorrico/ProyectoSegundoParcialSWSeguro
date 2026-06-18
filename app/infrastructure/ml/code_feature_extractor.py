@@ -20,8 +20,12 @@ DANGEROUS_PATTERNS: dict[str, str] = {
     "sql_raw": r"(?i)(SELECT|INSERT|UPDATE|DELETE)\s+[^;\n]*(\+|\$\{|%s|format\()",
     "pickle": r"\bpickle\.(load|loads)\s*\(",
     "yaml_load": r"\byaml\.load\s*\(",
-    "unsafe_c": r"\b(strcpy|strcat|gets|sprintf)\s*\(",
+    "unsafe_c": r"\b(strcpy|strcat|gets|sprintf|memcpy)\s*\(",
     "hardcoded_secret": r"(?i)(password|secret|token|api[_-]?key)\s*=\s*['\"][^'\"]{6,}",
+    "taint_source_scanf": r"\bscanf\s*\(",
+    "taint_source_read": r"\bread\s*\([^)]*\)",
+    "taint_source_argv": r"\bargv\b",
+    "taint_source_getenv": r"\bgetenv\s*\(",
 }
 
 SANITIZATION_PATTERNS: dict[str, str] = {

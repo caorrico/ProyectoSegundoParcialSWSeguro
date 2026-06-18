@@ -8,27 +8,52 @@ from sklearn.base import BaseEstimator, TransformerMixin
 
 
 class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        self._cpp_parser = None
+        self._java_parser = None
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state.pop("_cpp_parser", None)
+        state.pop("_java_parser", None)
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._cpp_parser = None
+        self._java_parser = None
+
     def fit(self, X, y=None):
         return self
 
+    def _ensure_parsers(self):
+        if self._cpp_parser is None:
+            cpp_lang = tree_sitter.Language(tree_sitter_cpp.language())
+            self._cpp_parser = tree_sitter.Parser(cpp_lang)
+        if self._java_parser is None:
+            java_lang = tree_sitter.Language(tree_sitter_java.language())
+            self._java_parser = tree_sitter.Parser(java_lang)
+
     def transform(self, X, y=None):
-        cpp_parser = self._build_parser(tree_sitter_cpp.language)
-        java_parser = self._build_parser(tree_sitter_java.language)
+        self._ensure_parsers()
 
         features = []
         for code in X:
-            if not isinstance(code, str):
-                code = ""
+            if not isinstance(code, str) or not code.strip():
+                features.append([0, 0, 0, 0, 0, 0])
+                continue
 
-            # Simple heuristic to detect Java
             if re.search(r"\b(public\s+class|import\s+java)\b", code):
-                parser = java_parser
+                parser = self._java_parser
             else:
-                parser = cpp_parser
+                parser = self._cpp_parser
 
-            tree = parser.parse(bytes(code, "utf8"))
+            try:
+                tree = parser.parse(bytes(code, "utf8"))
+                stats = self._extract_stats(tree.root_node)
+            except Exception:
+                stats = {"node_count": 0, "max_depth": 0, "pointer_ops": 0, "function_calls": 0, "loops": 0, "if_statements": 0}
 
-            stats = self._extract_stats(tree.root_node)
             features.append(
                 [
                     stats.get("node_count", 0),
@@ -42,15 +67,6 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
 
         return np.array(features)
 
-    def _build_parser(self, language_factory):
-        language = tree_sitter.Language(language_factory())
-        parser = tree_sitter.Parser()
-        if hasattr(parser, "set_language"):
-            parser.set_language(language)
-        else:
-            parser.language = language
-        return parser
-
     def _extract_stats(self, root_node):
         stats = {
             "node_count": 0,
@@ -61,29 +77,19 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
             "if_statements": 0,
         }
 
-        # Iterative traversal using a stack
         stack = [(root_node, 0)]
         while stack:
             node, depth = stack.pop()
-
             stats["node_count"] += 1
             stats["max_depth"] = max(stats["max_depth"], depth)
-
             node_type = node.type
 
-            # Pointers/References in C/C++
             if node_type in ["pointer_declarator", "reference_declarator", "pointer_expression"]:
                 stats["pointer_ops"] += 1
-
-            # Function calls
             if node_type in ["call_expression", "method_invocation"]:
                 stats["function_calls"] += 1
-
-            # Loops
             if node_type in ["while_statement", "for_statement", "do_statement"]:
                 stats["loops"] += 1
-
-            # Conditionals
             if node_type in ["if_statement"]:
                 stats["if_statements"] += 1
 
