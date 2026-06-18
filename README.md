@@ -12,22 +12,34 @@ Proyecto Python para analizar codigo fuente modificado en Pull Requests con un m
 ## Estructura
 
 ```text
-app/
-|-- domain/                 # Entidades, value objects y contratos sin dependencias ML
-|-- application/use_cases/  # Casos de uso de entrenamiento y prediccion
-|-- infrastructure/ml/      # Entrenadores, predictor, AST y features de codigo
-|-- infrastructure/repositories/ # Carga de datasets sinteticos y reales
-|-- interfaces/             # CLI y API FastAPI
-scripts/
-|-- analyze_pr_diff.py      # Analisis JSON de archivos modificados en PR
-|-- extract_code_features.py# Extraccion local de features estaticas
-|-- generate_dataset.py     # Dataset sintetico numerico
-|-- generate_owasp_dataset.py # Dataset OWASP 2025 de codigo fuente
-|-- send_telegram.py        # Notificaciones usando GitHub Secrets
-notebooks/
-|-- train_vulnerability_model.ipynb
 .github/workflows/
-|-- secure-pipeline.yml     # Pipeline CI/CD requerido
+└── secure-pipeline.yml         # Pipeline CI/CD (analisis ML, merge, deploy)
+app/
+├── domain/                     # Entidades, value objects y contratos sin dependencias ML
+├── application/use_cases/      # Casos de uso de entrenamiento y prediccion
+├── infrastructure/
+│   ├── ml/                     # Entrenadores, predictor, AST y features de codigo
+│   └── repositories/           # Carga de datasets sinteticos y reales
+├── interfaces/                 # CLI, API FastAPI y Telegram
+└── shared/                     # Settings
+scripts/
+├── analyze_pr_diff.py          # Analisis JSON de archivos modificados en PR
+├── extract_code_features.py    # Extraccion local de features estaticas
+├── generate_dataset.py         # Dataset sintetico numerico
+├── generate_owasp_dataset.py   # Dataset OWASP 2025 de codigo fuente
+└── send_telegram.py            # Notificaciones usando GitHub Secrets
+notebooks/                      # Notebooks de entrenamiento con validacion cruzada
+data/                           # Datasets generados y procesados
+docs/informe/                   # Informe tecnico (LaTeX + PDF)
+examples/                       # Codigo de ejemplo vulnerable y seguro
+models/                         # Modelos entrenados (.joblib)
+reports/                        # Metricas de evaluacion
+tests/                          # Pruebas unitarias
+Dockerfile                      # Imagen Docker para despliegue
+render.yaml                     # Configuracion Render
+requirements.txt                # Dependencias Python
+pyproject.toml                  # Metadata del proyecto
+README.md
 ```
 
 ## Instalacion

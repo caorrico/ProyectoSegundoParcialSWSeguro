@@ -206,6 +206,19 @@ test_python.py
 test_run.py
 scratch_*.py
 debug_*.py
+check_cuda.py
+
+# ─── Internal notes / AI prompts (not project deliverables) ──────────────────
+AGENTE_CODEX_EXPERTO.md
+DIVISION_EQUITATIVA_EQUIPO.md
+LO_QUE_FALTA.md
+WSL_SETUP.md
+intrucciones_extra.md
+teoria.md
+
+# ─── Enunciados / assignment PDFs ────────────────────────────────────────────
+PROY_PARCIAL_II_fases.pdf
+Proyecto_Integrador_fase_1_desarollo_seguro.pdf
 
 # ─── GitHub Actions cache ────────────────────────────────────────────────────
 .github/workflows/*.cache
@@ -213,3 +226,15 @@ debug_*.py
 # ─── Sphinx docs ─────────────────────────────────────────────────────────────
 docs/_build/
 /site
+
+# LaTeX build artifacts
+*.aux
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+#añadir extras
