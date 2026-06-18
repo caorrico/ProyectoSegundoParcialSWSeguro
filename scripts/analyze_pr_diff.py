@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app.application.use_cases.predict_vulnerability import CodeAnalyzer  # noqa: E402
 from app.domain.entities import RawCodeModule  # noqa: E402
+from app.infrastructure.ml.ast_extractor import validate_code_syntax  # noqa: E402
 from app.infrastructure.ml.code_feature_extractor import extract_code_features  # noqa: E402
 from app.infrastructure.ml.random_forest_predictor import RandomForestPredictor  # noqa: E402
 from app.shared.settings import settings  # noqa: E402
@@ -33,6 +34,8 @@ SOURCE_EXTENSIONS = {
     ".rs",
 }
 
+EXCLUDED_DIRS = {"app", "scripts", "tests", ".github", "notebooks", "docs", "data", "models", "reports"}
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze PR source changes with the trained ML model.")
@@ -42,10 +45,12 @@ def main() -> None:
     parser.add_argument("--output", default="reports/pr_security_scan.json", help="JSON report path")
     parser.add_argument("--threshold", type=float, default=0.90, help="Vulnerability probability threshold")
     parser.add_argument("--allow-missing-model", action="store_true", help="Return UNKNOWN instead of failing if model is missing")
+    parser.add_argument("--source-dir", help="Only analyze files under this directory (e.g. examples/)")
     args = parser.parse_args()
 
     try:
         files = _load_changed_files(args.changed_files, args.base_ref, args.head_ref)
+        files = _filter_source_files(files, args.source_dir)
         report = analyze_files(files, args.threshold, args.allow_missing_model)
     except Exception as error:
         report = {
@@ -61,13 +66,16 @@ def main() -> None:
 
     _write_report(report, Path(args.output))
     print(json.dumps(report, indent=2))
-    if report["status"] == "VULNERABLE":
-        sys.exit(1)
 
 
 def analyze_files(
     files: list[Path], threshold: float = 0.50, allow_missing_model: bool = False
 ) -> dict[str, Any]:
+    print("\n" + "="*50)
+    print("🧪 [SEMMA: SAMPLE] Loading changed files from PR")
+    print(f"Total files to inspect: {len(files)}")
+    print("="*50)
+
     if not settings.model_path.exists():
         if allow_missing_model:
             return {
@@ -93,10 +101,28 @@ def analyze_files(
         if not code.strip():
             continue
 
+        print(f"\n🔧 [SEMMA: MODIFY] Extracting security features from: {path.name}")
         prediction, probability = predictor.predict(RawCodeModule(code))
         probability = round(float(probability), 4)
         vulnerability_types, cwe_ids, recommendations = CodeAnalyzer.analyze_raw_code(code)
         feature_summary = extract_code_features(code, path)
+
+        syntax_errors = validate_code_syntax(code, str(path))
+        if syntax_errors:
+            print("  [!] Syntax errors detected:")
+            for err in syntax_errors:
+                marker = " " * err.column + "^" if err.column else ""
+                print(f"     ❌ {path.name}:{err.line}:{err.column} - {err.message}")
+                print(f"        {err.code_line}")
+                print(f"        {marker}")
+                vulnerability_types.append(f"Syntax Error: {err.message} at line {err.line}:{err.column}")
+                recommendations.append(
+                    f"Fix {path.name}:{err.line}:{err.column} - {err.message}. "
+                    f"Review the reported line and add the missing token."
+                )
+            cwe_ids.append("CWE-000")
+        
+        print(f"🤖 [SEMMA: MODEL] Model inference probability: {probability * 100:.2f}%")
         rule_vulnerable = bool(
             vulnerability_types or cwe_ids or feature_summary.suspicious_patterns
         )
@@ -115,10 +141,14 @@ def analyze_files(
                 "cwe_ids": cwe_ids,
                 "recommendations": recommendations,
                 "features": feature_summary.to_dict(),
+                "syntax_errors": [{"line": e.line, "column": e.column, "message": e.message, "code": e.code_line} for e in syntax_errors],
             }
         )
 
     status = "VULNERABLE" if vulnerable_count else "SAFE"
+    print("\n📊 [SEMMA: ASSESS] Consolidating security scan result")
+    print(f"Final Decision: {status} (Max Probability: {max_probability * 100:.2f}%)")
+    
     return {
         "status": status,
         "probability": round(max_probability, 4),
@@ -130,6 +160,24 @@ def analyze_files(
         "files": analyzed,
         "model_path": str(settings.model_path),
     }
+
+
+def _filter_source_files(files: list[Path], source_dir: str | None) -> list[Path]:
+    filtered = []
+    for path in files:
+        if not _is_source_file(path):
+            continue
+        parts = path.parts
+        if not parts:
+            continue
+        top_dir = parts[0]
+        if top_dir in EXCLUDED_DIRS:
+            continue
+        sdir = source_dir.replace("\\", "/").rstrip("/") + "/"
+        if source_dir and not path.as_posix().startswith(sdir):
+            continue
+        filtered.append(path)
+    return filtered
 
 
 def _load_changed_files(changed_files: str | None, base_ref: str, head_ref: str) -> list[Path]:

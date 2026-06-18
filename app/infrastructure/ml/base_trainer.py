@@ -38,7 +38,14 @@ class BaseTrainer(ABC):
         return {}
 
     def train(self, dataset: Dataset, tune: bool = False) -> Dict[str, object]:
+        print("\n" + "="*40)
+        print("🔍 [SEMMA: EXPLORE] Analyzing dataset distribution")
         dataset_frame = pd.DataFrame(dataset)
+        print(f"Total samples: {len(dataset_frame)}")
+        print(f"Class distribution:\n{dataset_frame[self.TARGET_COLUMN].value_counts(normalize=True)}")
+        print("="*40)
+
+        print("\n🔧 [SEMMA: MODIFY] Engineering features and data splitting")
         is_syntactic = "raw_code" in dataset_frame.columns
         
         if is_syntactic:
@@ -98,10 +105,13 @@ class BaseTrainer(ABC):
                 model = search.best_estimator_
             else:
                 print("No hyperparameter grid defined for this model. Skipping tuning.")
+                print("\n🤖 [SEMMA: MODEL] Training the final classifier")
                 model.fit(x_train, y_train)
         else:
+            print("\n🤖 [SEMMA: MODEL] Training the classifier")
             model.fit(x_train, y_train)
 
+        print("\n📊 [SEMMA: ASSESS] Evaluating model performance and metrics")
         predictions = model.predict(x_test)
         probabilities = model.predict_proba(x_test)[:, 1]
 

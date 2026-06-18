@@ -86,6 +86,7 @@ models/*.safetensors
 
 # Keep directory tracked
 !models/.gitkeep
+!models/vulnerability_model.joblib
 
 # ─── Datasets (large / proprietary) ─────────────────────────────────────────
 # Real-world vulnerability datasets — download separately via scripts

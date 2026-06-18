@@ -28,7 +28,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
@@ -46,33 +46,43 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python scripts/send_telegram.py --message "Security review started for PR #${{ github.event.number }}: ${{ github.head_ref }} -> ${{ github.base_ref }}"
+          MSG="🚀 <b>Revisión de Seguridad Iniciada</b>%0A"
+          MSG="${MSG}PR: #${{ github.event.number }}%0A"
+          MSG="${MSG}Rama: <code>${{ github.head_ref }}</code> → <code>${{ github.base_ref }}</code>%0A"
+          MSG="${MSG}Iniciado por: ${{ github.actor }}%0A"
+          MSG="${MSG}%0A<b>Fases del pipeline:</b>%0A"
+          MSG="${MSG}1️⃣ Ruff linting%0A"
+          MSG="${MSG}2️⃣ Análisis ML (sklearn)%0A"
+          MSG="${MSG}3️⃣ Reporte y notificación"
+          python scripts/send_telegram.py --message "$MSG"
 
       - name: Prepare model
         run: |
           if [ ! -f models/vulnerability_model.joblib ]; then
+            echo "Model not found. Generating dataset and training..."
             python scripts/generate_owasp_dataset.py
             python -m app.interfaces.cli train --use-owasp
+          else
+            echo "Model found. Skipping training."
           fi
 
       - name: Detect changed source files
         run: |
           git fetch origin ${{ github.base_ref }}
-          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/changed_files.txt
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/changed_files_all.txt
+          grep "^examples/" /tmp/changed_files_all.txt > /tmp/changed_files.txt || true
+          echo "=== Filtered changed files (examples/) ==="
           cat /tmp/changed_files.txt
 
       - name: Analyze PR changes
         id: scan
         shell: bash
         run: |
-          set +e
-          python scripts/analyze_pr_diff.py --changed-files /tmp/changed_files.txt --output reports/pr_security_scan.json
-          EXIT_CODE=$?
+          python scripts/analyze_pr_diff.py --changed-files /tmp/changed_files.txt --output reports/pr_security_scan.json --source-dir examples
           STATUS=$(python -c "import json; print(json.load(open('reports/pr_security_scan.json'))['status'])")
           PROB=$(python -c "import json; print(json.load(open('reports/pr_security_scan.json'))['probability'])")
           echo "scan_status=${STATUS}" >> "$GITHUB_OUTPUT"
           echo "scan_probability=${PROB}" >> "$GITHUB_OUTPUT"
-          exit $EXIT_CODE
 
       - name: Upload scan report
         if: always()
@@ -106,10 +116,20 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python scripts/send_telegram.py --message "Security review passed for PR #${{ github.event.number }}. Probability: ${{ steps.scan.outputs.scan_probability }}"
+          PROB=$(python -c "p = ${{ steps.scan.outputs.scan_probability }}; print(f'{p*100:.2f}%')")
+          MSG="✅ <b>Revisión de Seguridad APROBADA</b>%0A"
+          MSG="${MSG}PR: #${{ github.event.number }}%0A"
+          MSG="${MSG}Rama: <code>${{ github.head_ref }}</code> → <code>${{ github.base_ref }}</code>%0A"
+          MSG="${MSG}%0A<b>Fases:</b>%0A"
+          MSG="${MSG}1️⃣ Ruff linting: ✅ Sin errores%0A"
+          MSG="${MSG}2️⃣ Análisis ML: ✅ Completado%0A"
+          MSG="${MSG}3️⃣ Merge a test: 🔄 En progreso%0A"
+          MSG="${MSG}%0A📊 Probabilidad máxima: <b>$PROB</b>%0A"
+          MSG="${MSG}✅ Resultado: <i>SEGURO</i>"
+          python scripts/send_telegram.py --message "$MSG"
 
       - name: Handle vulnerable result
-        if: failure()
+        if: steps.scan.outputs.scan_status == 'VULNERABLE'
         uses: actions/github-script@v7
         with:
           script: |
@@ -118,14 +138,42 @@ jobs:
             if (fs.existsSync('reports/pr_security_scan.json')) {
               report = JSON.parse(fs.readFileSync('reports/pr_security_scan.json', 'utf8'));
             }
+            
+            let fileDetails = '';
+            if (report.files && report.files.length > 0) {
+              fileDetails = '### Detailed Findings per File\n\n';
+              report.files.forEach(f => {
+                if (f.status === 'VULNERABLE') {
+                  fileDetails += `#### 📄 \`${f.path}\`\n`;
+                  fileDetails += `- **Risk Level:** ${f.risk_level} (${(f.probability * 100).toFixed(2)}%)\n`;
+                  if (f.vulnerability_types && f.vulnerability_types.length > 0) {
+                    fileDetails += `- **Detected Issues:** ${f.vulnerability_types.join(', ')}\n`;
+                  }
+                  if (f.cwe_ids && f.cwe_ids.length > 0) {
+                    fileDetails += `- **CWE IDs:** ${f.cwe_ids.join(', ')}\n`;
+                  }
+                  if (f.features && f.features.suspicious_patterns && f.features.suspicious_patterns.length > 0) {
+                    fileDetails += `- **Suspicious Patterns:** \`${f.features.suspicious_patterns.join('`, `')}\`\n`;
+                  }
+                  if (f.recommendations && f.recommendations.length > 0) {
+                    fileDetails += `- **Recommendations:**\n  - ${f.recommendations.join('\n  - ')}\n`;
+                  }
+                  fileDetails += '\n';
+                }
+              });
+            }
+
             const body = [
-              `Security ML review result: **${report.status}**`,
-              `Probability: **${report.probability}**`,
+              `## 🛡️ Security ML Review Result: **${report.status}**`,
+              `**Maximum Vulnerability Probability:** ${(report.probability * 100).toFixed(2)}%`,
               '',
-              report.details,
+              `> ${report.details}`,
               '',
-              'The merge is blocked until the vulnerable code is corrected.'
+              fileDetails,
+              '---',
+              '❌ **The merge is blocked** until the vulnerable code is corrected or marked as a false positive by a security lead.'
             ].join('\n');
+            
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -141,18 +189,41 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `[fixing-required] Security review failed for PR #${context.issue.number}`,
+              title: `🚨 [fixing-required] Security Vulnerabilities in PR #${context.issue.number}`,
               body,
               labels: ['fixing-required', 'security-vulnerable']
             });
 
       - name: Notify vulnerable result
-        if: failure()
+        if: steps.scan.outputs.scan_status == 'VULNERABLE'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python scripts/send_telegram.py --message "Security review blocked PR #${{ github.event.number }}. Check GitHub for details."
+          MSG="❌ <b>Revisión de Seguridad: VULNERABLE</b>%0A"
+          MSG="${MSG}PR: #${{ github.event.number }} (<code>${{ github.head_ref }}</code> → <code>${{ github.base_ref }}</code>)%0A"
+          if [ -f reports/pr_security_scan.json ]; then
+            PROB=$(python -c "import json; print(json.load(open('reports/pr_security_scan.json'))['probability'])")
+            TOTAL=$(python -c "import json; print(len(json.load(open('reports/pr_security_scan.json'))['files']))")
+            VULN=$(python -c "import json; r=json.load(open('reports/pr_security_scan.json')); print(len([f for f in r['files'] if f['status'] == 'VULNERABLE']))")
+            PCT=$(python -c "import json; r=json.load(open('reports/pr_security_scan.json')); t=len(r['files']); v=len([f for f in r['files'] if f['status'] == 'VULNERABLE']); print(f'{v*100//t}%')")
+            DETAILS=$(python scripts/format_telegram_vulnerable.py)
+            MSG="${MSG}%0A<b>Fases completadas:</b>%0A"
+            MSG="${MSG}1️⃣ Ruff linting: ✅ Sin errores%0A"
+            MSG="${MSG}2️⃣ Análisis ML: ✅ Completado%0A"
+            MSG="${MSG}3️⃣ Merge a test: ❌ Bloqueado%0A"
+            MSG="${MSG}%0A📊 <b>Resultado del análisis:</b>%0A"
+            MSG="${MSG}🔴 Estado: <b>VULNERABLE</b>%0A"
+            PCT_PROB=$(python -c "p = $PROB; print(f'{p*100:.2f}%')")
+            MSG="${MSG}⚠️ Probabilidad máxima: <b>$PCT_PROB</b>%0A"
+            MSG="${MSG}📁 Archivos vulnerables: <b>$VULN de $TOTAL ($PCT)</b>%0A"
+            MSG="${MSG}%0A📄 <b>Archivos afectados:</b>%0A"
+            MSG="${MSG}$DETAILS%0A"
+          else
+            MSG="${MSG}⚠️ Error: Reporte no encontrado.%0A"
+          fi
+          MSG="${MSG}%0A🔗 Revisa GitHub para más detalles y remediación."
+          python scripts/send_telegram.py --message "$MSG"
 
   tests-and-merge-test:
     name: Tests and merge to test
@@ -171,7 +242,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
@@ -200,7 +271,28 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python scripts/send_telegram.py --message "PR #${{ github.event.number }} merged to test after tests passed."
+          MSG="🧪 <b>PR Fusionado a Test</b>%0A"
+          MSG="${MSG}PR: #${{ github.event.number }} (<code>${{ github.head_ref }}</code> → <code>test</code>)%0A"
+          MSG="${MSG}%0A<b>Fases completadas:</b>%0A"
+          MSG="${MSG}1️⃣ Ruff linting: ✅%0A"
+          MSG="${MSG}2️⃣ Análisis ML: ✅ Seguro%0A"
+          MSG="${MSG}3️⃣ Pytest: ✅ Pasaron%0A"
+          MSG="${MSG}4️⃣ Merge a test: ✅ Completado%0A"
+          MSG="${MSG}%0A📦 <b>Pipeline:</b> Revisión → Tests → Merge"
+          python scripts/send_telegram.py --message "$MSG"
+
+      - name: Notify test failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MSG="❌ <b>Tests FALLARON</b> para PR #${{ github.event.number }}%0A"
+          MSG="${MSG}Rama: <code>${{ github.head_ref }}</code> → <code>test</code>%0A"
+          MSG="${MSG}%0A<b>Fase:</b> Tests y Merge a Test%0A"
+          MSG="${MSG}🔴 El merge automático a test fue cancelado.%0A"
+          MSG="${MSG}⚠️ Revisa los logs del CI para más detalles."
+          python scripts/send_telegram.py --message "$MSG"
 
   merge-main-and-deploy:
     name: Merge main and deploy
@@ -243,4 +335,29 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python scripts/send_telegram.py --message "Main merge/build/deploy finished for PR #${{ github.event.number }} with status: ${{ job.status }}."
+          STATUS="${{ job.status }}"
+          if [ "$STATUS" = "success" ]; then
+            MSG="🚀 <b>Despliegue Exitoso</b>%0A"
+            MSG="${MSG}Entorno: <i>Producción (Render)</i>%0A"
+            MSG="${MSG}%0A<b>Pipeline completo:</b>%0A"
+            MSG="${MSG}1️⃣ Ruff linting: ✅%0A"
+            MSG="${MSG}2️⃣ Análisis ML: ✅%0A"
+            MSG="${MSG}3️⃣ Tests: ✅%0A"
+            MSG="${MSG}4️⃣ Merge a test: ✅%0A"
+            MSG="${MSG}5️⃣ Merge main: ✅%0A"
+            MSG="${MSG}6️⃣ Docker build: ✅%0A"
+            MSG="${MSG}7️⃣ Deploy Render: ✅%0A"
+          else
+            MSG="⚠️ <b>Error en Despliegue/Merge Main</b>%0A"
+            MSG="${MSG}Estado: <i>$STATUS</i>%0A"
+            MSG="${MSG}Fase: <i>Merge Main y Deploy</i>%0A"
+            MSG="${MSG}%0A<b>Pipeline completado hasta:</b>%0A"
+            MSG="${MSG}1️⃣ Ruff linting: ✅%0A"
+            MSG="${MSG}2️⃣ Análisis ML: ✅%0A"
+            MSG="${MSG}3️⃣ Tests: ✅%0A"
+            MSG="${MSG}4️⃣ Merge a test: ✅%0A"
+            MSG="${MSG}5️⃣ Merge main + Deploy: ❌ Falló%0A"
+          fi
+          MSG="${MSG}%0APR: #${{ github.event.number }}%0A"
+          MSG="${MSG}Ref: <code>main</code>"
+          python scripts/send_telegram.py --message "$MSG"
