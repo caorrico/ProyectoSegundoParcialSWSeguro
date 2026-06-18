@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Profile</title>
+</head>
+<body>
+    <h1>Welcome</h1>
+    <div id="profile"></div>
+    <script>
+        var params = new URLSearchParams(window.location.search);
+        var name = params.get("name");
+        document.getElementById("profile").innerHTML = "Hello, " + name;
+    </script>
+</body>
+</html>
