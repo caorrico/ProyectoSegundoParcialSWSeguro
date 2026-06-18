@@ -78,9 +78,9 @@ except:
               const report = JSON.parse(fs.readFileSync('security_report.json', 'utf8'));
               if (report.vulnerable) {
                 const comment = `### 🚨 ALERTA DE SEGURIDAD: Código Vulnerable Detectado
-                **Probabilidad:** ${(report.probability * 100).toFixed(2)}%
-                **Vulnerabilidades:** ${report.vulnerabilities.join(', ')}
-                **Mitigación:** ${report.mitigation.join('\n')}`;
+**Probabilidad:** ${(report.probability * 100).toFixed(2)}%
+**Vulnerabilidades:** ${report.vulnerabilities.join(', ')}
+**Mitigación:** ${report.mitigation.join('\n')}`;
                 
                 github.rest.issues.createComment({
                   issue_number: context.issue.number,

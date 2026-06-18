@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
 
@@ -30,7 +29,6 @@ def run_notebook_logic():
     
     print("--- 2. Split ---")
     real_df = df[~df['source'].isin(SYNTHETIC_SOURCES)].copy()
-    df[df['source'].isin(SYNTHETIC_SOURCES)].copy()
     
     real_groups = real_df['group_id'].where(real_df['group_id'].astype(str).str.len() > 0, real_df['code_hash'])
     splitter = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=42)
@@ -44,14 +42,10 @@ def run_notebook_logic():
     fit_idx, valid_idx = next(val_splitter.split(train_real_df, train_real_df['is_vulnerable'], groups=val_groups))
     
     fit_df = train_real_df.iloc[fit_idx].copy()
-    valid_df = train_real_df.iloc[valid_idx].copy()
     
     X_fit = fit_df[FEATURE_COLUMNS]
     y_fit = fit_df['is_vulnerable'].astype(int)
-    valid_df[FEATURE_COLUMNS]
-    valid_df['is_vulnerable'].astype(int)
-    train_real_df[FEATURE_COLUMNS]
-    train_real_df['is_vulnerable'].astype(int)
+    
     X_test = test_df[FEATURE_COLUMNS]
     y_test = test_df['is_vulnerable'].astype(int)
 

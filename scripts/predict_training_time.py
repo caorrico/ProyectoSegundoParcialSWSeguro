@@ -31,7 +31,8 @@ class SecurityFeatureExtractor(BaseEstimator, TransformerMixin):
     def transform(self, X, y=None):
         features = []
         for code in X:
-            if not isinstance(code, str): code = ''
+            if not isinstance(code, str):
+                code = ''
             row = [sum(len(re.findall(p, code, re.IGNORECASE)) for p in pats) for pats in self.DANGEROUS_FUNCTIONS.values()]
             row.append(len(code))
             features.append(row)
@@ -40,7 +41,8 @@ class SecurityFeatureExtractor(BaseEstimator, TransformerMixin):
         return np.array([f'sec_{cat}' for cat in self.DANGEROUS_FUNCTIONS.keys()] + ['length'])
 
 class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
-    def __init__(self): self._parser = None
+    def __init__(self):
+        self._parser = None
     def _init(self):
         if self._parser is None:
             try:
@@ -49,13 +51,16 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
                 lang = tree_sitter.Language(tree_sitter_cpp.language(), 'cpp')
                 self._parser = tree_sitter.Parser()
                 self._parser.set_language(lang)
-            except: self._parser = 'off'
-    def fit(self, X, y=None): return self
+            except Exception:
+                self._parser = 'off'
+    def fit(self, X, y=None):
+        return self
     def transform(self, X, y=None):
         self._init()
         features = []
         for code in X:
-            if self._parser == 'off' or not isinstance(code, str): features.append([0])
+            if self._parser == 'off' or not isinstance(code, str):
+                features.append([0])
             else:
                 try:
                     tree = self._parser.parse(bytes(code, 'utf8'))
@@ -66,22 +71,28 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
                         count += 1
                         stack.extend(n.children)
                     features.append([count])
-                except: features.append([0])
+                except Exception:
+                    features.append([0])
         return csr_matrix(np.array(features))
-    def get_feature_names_out(self, input_features=None): return np.array(['ast_nodes'])
+    def get_feature_names_out(self, input_features=None):
+        return np.array(['ast_nodes'])
 
 def load_jsonl(path, limit=None):
     data = []
-    if not Path(path).exists(): return data
+    if not Path(path).exists():
+        return data
     with open(path, 'r', encoding='utf-8') as f:
         for i, line in enumerate(f):
-            if limit and i >= limit: break
+            if limit and i >= limit:
+                break
             try:
                 item = json.loads(line)
                 code = item.get('func') or item.get('code') or item.get('functionSource') or ''
                 label = item.get('target') or item.get('label') or 0
-                if code: data.append({'raw_code': code, 'is_vulnerable': int(label)})
-            except: continue
+                if code:
+                    data.append({'raw_code': code, 'is_vulnerable': int(label)})
+            except Exception:
+                continue
     return data
 
 def run_benchmark(X, y, size):
