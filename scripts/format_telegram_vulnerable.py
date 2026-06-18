@@ -24,6 +24,9 @@ for f in report["files"]:
         for se in syntax_errs:
             if se.get("code"):
                 lines.append(f"  Línea {se['line']}: <code>{se['code'][:60]}</code>")
+        recs = f.get("recommendations") or []
+        for r in recs[:1]:
+            lines.append(f"  🔧 {r[:80]}")
 
 output = "%0A".join(lines) if lines else "  (no vulnerable files listed)"
 print(output, end="")
