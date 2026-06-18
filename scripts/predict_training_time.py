@@ -48,7 +48,7 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
             try:
                 import tree_sitter
                 import tree_sitter_cpp
-                lang = tree_sitter.Language(tree_sitter_cpp.language(), 'cpp')
+                lang = tree_sitter.Language(tree_sitter_cpp.language())
                 self._parser = tree_sitter.Parser()
                 self._parser.set_language(lang)
             except Exception:

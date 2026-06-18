@@ -73,8 +73,8 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
                 import tree_sitter
                 import tree_sitter_cpp
                 import tree_sitter_java
-                cpp_lang = tree_sitter.Language(tree_sitter_cpp.language(), 'cpp')
-                java_lang = tree_sitter.Language(tree_sitter_java.language(), 'java')
+                cpp_lang = tree_sitter.Language(tree_sitter_cpp.language())
+                java_lang = tree_sitter.Language(tree_sitter_java.language())
                 self._cpp_parser = tree_sitter.Parser()
                 self._cpp_parser.set_language(cpp_lang)
                 self._java_parser = tree_sitter.Parser()
