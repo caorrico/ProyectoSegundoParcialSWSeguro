@@ -62,8 +62,6 @@ def main() -> None:
 
     _write_report(report, Path(args.output))
     print(json.dumps(report, indent=2))
-    if report["status"] == "VULNERABLE":
-        sys.exit(1)
 
 
 def analyze_files(

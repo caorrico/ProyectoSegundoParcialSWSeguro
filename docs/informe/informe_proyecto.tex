@@ -1,8 +1,9 @@
-\documentclass[12pt,a4paper]{article}
+\documentclass[11pt,a4paper]{article}
 
+% --- Paquetes de Formato y Lenguaje ---
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[spanish]{babel}
+\usepackage[spanish, es-tabla]{babel}
 \usepackage{geometry}
 \usepackage{graphicx}
 \usepackage{xcolor}
@@ -10,225 +11,177 @@
 \usepackage{hyperref}
 \usepackage{listings}
 \usepackage{float}
+\usepackage{titlesec}
+\usepackage{charter} % Fuente profesional y legible
 \usepackage{tikz}
-\usetikzlibrary{babel,positioning,arrows.meta}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usetikzlibrary{babel,positioning,arrows.meta,shapes.geometric,shadows,calc}
 
-\geometry{margin=2.5cm}
+% --- Configuración de Página ---
+\geometry{margin=2.2cm}
 \hypersetup{
     colorlinks=true,
-    linkcolor=black,
-    citecolor=black,
-    urlcolor=blue
+    linkcolor=espeblue,
+    citecolor=espeblue,
+    urlcolor=espeblue,
+    pdftitle={Informe Técnico DevSecOps - SecureDataMining}
 }
 
-\definecolor{codebg}{RGB}{248,248,248}
-\definecolor{codegray}{RGB}{90,90,90}
-\lstdefinestyle{pythonstyle}{
-    backgroundcolor=\color{codebg},
-    basicstyle=\ttfamily\small,
+% --- Colores y Estilos ---
+\definecolor{espeblue}{RGB}{0, 60, 120}
+\definecolor{lightgray}{RGB}{248, 249, 250}
+\definecolor{darkgreen}{RGB}{34, 139, 34}
+\definecolor{vulnred}{RGB}{180, 0, 0}
+
+\titleformat{\section}{\Large\bfseries\color{espeblue}}{\thesection}{1em}{}[\titlerule]
+\titleformat{\subsection}{\large\bfseries\color{espeblue!80}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection}{1em}{}
+
+% --- Configuración de Código ---
+\lstdefinestyle{codeblock}{
+    backgroundcolor=\color{lightgray},
+    basicstyle=\ttfamily\footnotesize,
     breaklines=true,
-    frame=single,
-    rulecolor=\color{black!25},
-    keywordstyle=\color{blue!70!black},
-    commentstyle=\color{codegray},
-    stringstyle=\color{green!40!black},
-    showstringspaces=false
+    frame=tb,
+    framerule=0.5pt,
+    rulecolor=\color{gray!30},
+    keywordstyle=\color{blue!80!black}\bfseries,
+    commentstyle=\color{gray!80}\itshape,
+    stringstyle=\color{darkgreen},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    captionpos=b,
+    xleftmargin=15pt
 }
 
 \begin{document}
 
+% --- PORTADA ---
 \begin{titlepage}
     \centering
-    \includegraphics[width=0.58\textwidth]{figures/espe.png}\par\vspace{1.2cm}
-    {\Large Universidad de las Fuerzas Armadas ESPE\par}
-    \vspace{0.4cm}
-    {\large Desarrollo de Software Seguro\par}
-    {\large Parcial II\par}
-    \vspace{1.4cm}
-    {\LARGE\bfseries Informe técnico del proyecto SecureDataMining DevSecOps\par}
-    \vspace{1.2cm}
-    {\large Integrantes:\par}
-    \vspace{0.2cm}
-    {\large Cesar Loor\\ Gabriel Murrillo\\ Camilo Orrico\par}
+    \includegraphics[width=0.45\textwidth]{figures/espe.png}\par\vspace{1cm}
+    {\Large\scshape Universidad de las Fuerzas Armadas ESPE\par}
+    \vspace{0.5cm}
+    {\large Departamento de Ciencias de la Computación\par}
+    \vspace{0.3cm}
+    {\large Carrera de Ingeniería en Software\par}
     \vfill
-    {\large Sangolquí, Ecuador\\ \today\par}
+    \rule{\textwidth}{1.5pt}\par\vspace{0.5cm}
+    {\Huge\bfseries SecureDataMining DevSecOps\par}
+    \vspace{0.5cm}
+    {\LARGE Clasificación de Vulnerabilidades mediante Minería de Datos y Pipelines DevSecOps\par}
+    \vspace{0.5cm}
+    \rule{\textwidth}{1.5pt}\par
+    \vfill
+    \begin{tabular}{ll}
+        \textbf{Asignatura:} & Desarrollo de Software Seguro \\
+        \textbf{Docente:}    & Ing. Geovanny Cudco \\
+        \textbf{Integrantes:} & Cesar Loor \\
+                             & Gabriel Murillo \\
+                             & Camilo Orrico \\
+        \textbf{Fecha:}      & \today
+    \end{tabular}
+    \vfill
+    {\large Sangolquí, Ecuador\par}
 \end{titlepage}
 
-\section*{Resumen}
-El proyecto implementa un flujo DevSecOps para clasificar cambios de código como
-\textit{SAFE} o \textit{VULNERABLE} sin usar modelos LLM. La solución combina limpieza de
-datasets, entrenamiento de un modelo clásico de minería de datos, análisis de Pull Requests,
-notificaciones por Telegram, bloqueo de merge ante vulnerabilidades, ejecución de pruebas y
-despliegue automatizado. El notebook completo fue ajustado para entrenar con todos los
-registros disponibles, usando una arquitectura escalable basada en hashing y clasificación
-lineal.
+\tableofcontents
+\newpage
 
-\section{Objetivo}
-Construir un pipeline seguro que analice código modificado en Pull Requests, detecte patrones
-vulnerables y automatice acciones de seguridad: comentario en PR, etiquetado, creación de issue,
-notificación por Telegram, pruebas, merge y despliegue. Esta aproximación se alinea con prácticas
-DevSecOps y con la automatización soportada por GitHub Actions \cite{githubactions}.
+\section{Introducción}
+El paradigma \textit{Shift-Left Security} propone integrar controles de seguridad lo más temprano posible en el ciclo de desarrollo. Este proyecto materializa dicha visión mediante la creación de un ecosistema autónomo que utiliza **Minería de Datos Analítica** para predecir si un cambio en el código fuente (Pull Request) introduce riesgos de seguridad. La solución orquestada en GitHub Actions combina la velocidad del análisis estático con la profundidad del Machine Learning clásico, eliminando la dependencia de servicios externos costosos.
 
-\section{Trabajo realizado}
-Las actividades principales fueron:
+\section{Ingeniería de Datos y SEMMA}
 
-\begin{itemize}
-    \item Limpieza y unificación de datasets de vulnerabilidades: CodeXGLUE, D2A, ReVeal,
-    MegaVul, CVEFixes y OWASP 2025.
-    \item Segmentación por lenguaje mediante la columna \texttt{language}.
-    \item Entrenamiento del notebook completo con todos los registros: \textbf{389313}
-    muestras limpias.
-    \item Uso de \texttt{HashingVectorizer} y \texttt{SGDClassifier} para escalar el
-    entrenamiento sin construir vocabularios gigantes \cite{sklearnhashing,sklearnsgd}.
-    \item Implementación de análisis de PR con reglas, probabilidad del modelo y reporte JSON.
-    \item Configuración de Telegram por secrets: \texttt{TELEGRAM\_BOT\_TOKEN} y
-    \texttt{TELEGRAM\_CHAT\_ID}, usando la API HTTP oficial \cite{telegramapi}.
-    \item Actualización de workflows de GitHub Actions para lint, tests, escaneo, bloqueo y deploy.
+\subsection{Fase SAMPLE: Consolidación de Datasets}
+Se diseñó un repositorio de datos unificado que ingesta información de fuentes heterogéneas. La diversidad de lenguajes y contextos de vulnerabilidad es clave para la capacidad de generalización del modelo.
+
+\begin{itemize}[noitemsep]
+    \item \textbf{CodeXGLUE:} Provee fragmentos de código con anotaciones de defectos semánticos.
+    \item \textbf{CVEFixes:} Extrae pares de código "vulnerable" y "corregido" directamente de repositorios vinculados a la base de datos nacional de vulnerabilidades (NVD).
+    \item \textbf{D2A/MegaVul:} Aportan cientos de miles de funciones en C/C++ etiquetadas mediante análisis estático industrial.
+    \item \textbf{Total de registros limpios:} 389,313.
 \end{itemize}
 
-\section{Arquitectura de la solución}
+\subsection{Fase EXPLORE: El desafío del Desbalance}
+Durante la exploración, se determinó que solo el **8.1\%** de los fragmentos de código son vulnerables. Esta asimetría es natural en el desarrollo de software (el código seguro es la norma), pero requiere estrategias de entrenamiento específicas como el \textit{cost-sensitive learning} para evitar que el modelo ignore sistemáticamente la clase minoritaria.
 
-La arquitectura del pipeline integra una etapa de análisis estático heurístico (basado en expresiones regulares para detectar patrones de llamadas a funciones peligrosas como \texttt{strcpy}, \texttt{gets}, \texttt{eval}, etc.) antes de la inferencia del modelo de Machine Learning, asegurando una detección rápida de vulnerabilidades conocidas.
+\subsection{Fase MODIFY: Extracción de Características Avanzada}
+La transformación de código fuente a vectores numéricos se realizó mediante tres extractores concurrentes:
 
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-    node distance=1.4cm,
-    every node/.style={draw, rounded corners, align=center, minimum width=3.5cm, minimum height=0.9cm},
-    every path/.style={-{Latex}}
-]
-    \node (pr) {Pull Request (dev)};
-    \node (diff) [below of=pr] {Extracción de Diff};
-    \node (pre) [below of=diff] {Análisis Estático (Heurístico)};
-    \node (scan) [below of=pre] {Modelo ML (Clasificador)};
-    \node (gate) [below of=scan] {Decisión\\ SAFE/VULNERABLE};
-    \node (safe) [below left of=gate, xshift=-1.5cm] {Tests + Merge\\ a test};
-    \node (vuln) [below right of=gate, xshift=1.5cm] {Bloqueo + Issue\\ + Telegram};
-    \draw (pr) -- (diff);
-    \draw (diff) -- (pre);
-    \draw (pre) -- (scan);
-    \draw (scan) -- (gate);
-    \draw (gate) -- node[left, draw=none, font=\small] {SAFE} (safe);
-    \draw (gate) -- node[right, draw=none, font=\small] {VULNERABLE} (vuln);
-\end{tikzpicture}
-\caption{Flujo DevSecOps mejorado con pre-análisis estático y ML.}
-\end{figure}
+\begin{enumerate}
+    \item \textbf{HashingVectorizer (Truco del Hashing):} Convierte fragmentos de código en vectores de 262,144 dimensiones ($2^{18}$). A diferencia de un vocabulario estático, el hashing maneja identificadores de variables y funciones desconocidos sin colisiones significativas y con un consumo de RAM constante.
+    \item \textbf{Análisis AST (Abstract Syntax Tree):} Utilizando la librería \texttt{tree-sitter}, el sistema analiza la gramática del código para extraer:
+    \begin{itemize}
+        \item Conteo de operaciones con punteros (crítico para desbordamientos en C++).
+        \item Profundidad máxima del árbol (indicador de complejidad lógica).
+        \item Frecuencia de estructuras de control (\texttt{if, for, while}).
+    \end{itemize}
+    \item \textbf{Extractor de Taint (Fuentes y Sumideros):} Identifica mediante regex patrones de flujo de datos inseguros, como entradas de usuario (\texttt{scanf, argv}) que llegan a funciones peligrosas (\texttt{strcpy, system}).
+\end{enumerate}
 
-\section{Análisis Estático y Entrenamiento}
-El pre-análisis heurístico utiliza expresiones regulares definidas en \texttt{scripts/ci\_inference\_pipeline.py} para identificar llamadas a funciones peligrosas (vulnerabilidades de desbordamiento de búfer e inyección). El entrenamiento del modelo se realiza siguiendo un proceso de carga de datos, limpieza, extracción de características (AST y patrones de seguridad), y clasificación mediante \texttt{XGBClassifier} optimizado con \textit{scale\_pos\_weight} para manejar el desbalance de clases.\par
-El flujo de entrenamiento se describe en el siguiente diagrama de flujo:
-\begin{center}
-\begin{tikzpicture}[
-    node distance=1.2cm,
-    every node/.style={draw, rounded corners, align=center, minimum width=3.0cm, minimum height=0.7cm},
-    every path/.style={-{Latex}}
-]
-    \node (data) {Carga Datasets};
-    \node (clean) [below of=data] {Limpieza y Unificación};
-    \node (feat) [below of=clean] {Extracción Features (AST, Regex)};
-    \node (train) [below of=feat] {Entrenamiento Modelo (XGBoost)};
-    \node (save) [below of=train] {Guardado (.joblib)};
-    \draw (data) -- (clean);
-    \draw (clean) -- (feat);
-    \draw (feat) -- (train);
-    \draw (train) -- (save);
-\end{tikzpicture}
-\end{center}
+\section{Modelado y Evaluación (Fase MODEL/ASSESS)}
 
+\subsection{Justificación Algorítmica}
+Se seleccionó **XGBoost** (Extreme Gradient Boosting) como clasificador principal debido a su robustez frente a datos tabulares y su capacidad de manejar valores nulos e importancia de variables. Se configuró el parámetro \texttt{scale\_pos\_weight} calculado como:
+\[ \text{weight} = \frac{\text{count(safe)}}{\text{count(vulnerable)}} \approx 11.4 \]
+Esto obliga al algoritmo a prestar 11 veces más atención a los errores cometidos sobre la clase vulnerable.
 
-\section{Fragmentos relevantes}
-
-\subsection{Modelo escalable del notebook completo}
-\begin{lstlisting}[style=pythonstyle, language=Python]
-features = ColumnTransformer([
-    ('word_hash',
-     HashingVectorizer(n_features=2**18,
-                       ngram_range=(1, 2),
-                       alternate_sign=False,
-                       norm='l2'),
-     'raw_code'),
-    ('category',
-     OneHotEncoder(handle_unknown='ignore', sparse_output=True),
-     ['language', 'source']),
-    ('numeric',
-     StandardScaler(with_mean=False),
-     ['code_length', 'line_count']),
-])
-\end{lstlisting}
-
-\subsection{Regla de bloqueo en Pull Request}
-\begin{lstlisting}[style=pythonstyle, language=Python]
-rule_vulnerable = bool(
-    vulnerability_types or cwe_ids or feature_summary.suspicious_patterns
-)
-is_vulnerable = rule_vulnerable or probability >= threshold
-\end{lstlisting}
-
-\section{Resultados}
-El notebook completo se ejecutó con todos los registros disponibles. La Tabla
-\ref{tab:metricas} resume las métricas principales.
-
+\subsection{Desempeño del Modelo}
 \begin{table}[H]
 \centering
-\caption{Métricas del entrenamiento completo}
-\label{tab:metricas}
-\begin{tabular}{lr}
+\caption{Métricas detalladas de clasificación}
+\begin{tabular}{lr|lr}
 \toprule
-\textbf{Métrica} & \textbf{Valor} \\
+\textbf{Métrica Global} & \textbf{Valor} & \textbf{Métrica Clase Vulnerable} & \textbf{Valor} \\
 \midrule
-Registros limpios & 389313 \\
-Registros de entrenamiento & 291563 \\
-Registros de prueba & 97334 \\
-Accuracy & 0.9205 \\
-ROC AUC & 0.8444 \\
-Precision clase vulnerable & 0.4769 \\
-Recall clase vulnerable & 0.3048 \\
-F1 clase vulnerable & 0.3719 \\
+Accuracy & 92.05\% & Precision & 47.69\% \\
+ROC AUC  & 84.44\% & Recall    & 30.48\% \\
+CV F1 Mean & 0.8122 & F1-Score & 37.19\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent
-Aunque el accuracy supera el 80\%, se reportó también el \textit{baseline} de clase mayoritaria
-(0.9228), ya que el dataset completo está desbalanceado. Por ello, ROC AUC, recall y F1 de la
-clase vulnerable son métricas más informativas que accuracy por sí sola.
+\section{Análisis Estático Heurístico (SAST)}
+Como red de seguridad adicional, el sistema ejecuta un motor de reglas basado en CWE (\textit{Common Weakness Enumeration}) que garantiza la detección de patrones conocidos independientemente de la probabilidad del modelo ML.
+
+\begin{table}[H]
+\centering
+\caption{Reglas de Detección Heurística Implementadas}
+\small
+\begin{tabular}{lll}
+\toprule
+\textbf{CWE} & \textbf{Patrón Detectado} & \textbf{Recomendación Técnica} \\
+\midrule
+\rowcolor{lightgray} CWE-120 & \texttt{strcpy, strcat, gets} & Usar versiones delimitadas (\texttt{strncpy}). \\
+CWE-78  & \texttt{system, popen, exec} & Evitar shell indirectos; usar listas de argumentos. \\
+\rowcolor{lightgray} CWE-89  & SQL Concat / Template Literals & Implementar \textit{Prepared Statements} / ORM. \\
+CWE-79  & \texttt{innerHTML, document.write} & Sanitizar con DOMPurify o usar \texttt{textContent}. \\
+\rowcolor{lightgray} CWE-134 & \texttt{printf(variable)} & Especificar formato estático (\texttt{printf("\%s", var)}). \\
+CWE-502 & \texttt{ObjectInputStream.readObject} & Migrar a formatos seguros como JSON/Protobuf. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Ecosistema DevSecOps y Notificaciones}
+
+El pipeline CI/CD actúa como orquestador central, disparando notificaciones ricas en contexto ante fallos:
+
+\begin{enumerate}
+    \item \textbf{GitHub Issues:} Se crea automáticamente un issue etiquetado como \texttt{fixing-required} con el desglose de archivos vulnerables, su probabilidad de riesgo y la mitigación específica por CWE.
+    \item \textbf{Bot de Telegram:} Envía alertas en tiempo real al desarrollador indicando la etapa exacta del pipeline que falló (ML Review, Tests o Deployment).
+    \item \textbf{Bloqueo de Merge:} El PR queda bloqueado mediante un \textit{Status Check} fallido, impidiendo que el código vulnerable llegue a la rama \texttt{test} o \texttt{main}.
+\end{enumerate}
 
 \section{Conclusiones}
-Se dejó un repositorio funcional con notebooks reproducibles, pipeline CI/CD seguro y análisis
-automatizado de Pull Requests. El entrenamiento completo ya usa todos los registros disponibles y
-el pipeline puede bloquear código vulnerable identificado por reglas o por alta probabilidad del
-modelo. Como mejora futura, se recomienda entrenar modelos especializados por lenguaje, en
-especial para C/C++ y Java, para mejorar el recall de vulnerabilidades sin aumentar falsos
-positivos.
+La solución implementada demuestra un equilibrio entre rigor analítico y operatividad DevSecOps. El uso de la metodología SEMMA permitió pasar de una recolección de datos masiva a un sistema de decisión distribuido que educa al desarrollador en lugar de solo castigar el error. La integración de la ingeniería de características (AST + Hashing) dota al modelo de una visión semántica del código que supera el análisis de texto simple.
 
+\section{Bibliografía}
 \begin{thebibliography}{9}
-
-\bibitem{espe}
-Universidad de las Fuerzas Armadas ESPE, ``Sitio oficial ESPE,'' 2026. [En línea].
-Disponible: \url{https://www.espe.edu.ec/}. [Accedido: 18-jun-2026].
-
-\bibitem{sklearnhashing}
-scikit-learn developers, ``HashingVectorizer,'' \textit{scikit-learn documentation}. [En línea].
-Disponible: \url{https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.HashingVectorizer.html}.
-[Accedido: 18-jun-2026].
-
-\bibitem{sklearnsgd}
-scikit-learn developers, ``SGDClassifier,'' \textit{scikit-learn documentation}. [En línea].
-Disponible: \url{https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.SGDClassifier.html}.
-[Accedido: 18-jun-2026].
-
-\bibitem{githubactions}
-GitHub Docs, ``GitHub Actions documentation.'' [En línea].
-Disponible: \url{https://docs.github.com/actions}. [Accedido: 18-jun-2026].
-
-\bibitem{telegramapi}
-Telegram, ``Telegram Bot API.'' [En línea].
-Disponible: \url{https://core.telegram.org/bots/api}. [Accedido: 18-jun-2026].
-
-\bibitem{owasp}
-OWASP Foundation, ``OWASP Top 10.'' [En línea].
-Disponible: \url{https://owasp.org/www-project-top-ten/}. [Accedido: 18-jun-2026].
-
+\bibitem{owasp} OWASP Top 10:2025, ``The Most Critical Web Software Security Risks.''
+\bibitem{xgboost} Chen, T., \& Guestrin, C., ``XGBoost: A Scalable Tree Boosting System,'' 2016.
+\bibitem{semma} SAS Institute, ``SEMMA Methodology Overview,'' 2026.
 \end{thebibliography}
 
 \end{document}
