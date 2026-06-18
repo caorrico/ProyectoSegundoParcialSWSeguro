@@ -19,6 +19,7 @@ from app.infrastructure.repositories.combined_dataset_repository import Combined
 from app.infrastructure.repositories.d2a_dataset_repository import D2ADatasetRepository
 from app.infrastructure.repositories.reveal_dataset_repository import ReVealDatasetRepository
 from app.infrastructure.repositories.vulberta_dataset_repository import VulBERTaDatasetRepository
+from app.infrastructure.repositories.cvefixes_dataset_repository import CVEFixesDatasetRepository
 
 class OWASPDatasetRepository:
     def __init__(self, path: Path):
@@ -34,12 +35,14 @@ class OWASPDatasetRepository:
         return records
 
 def build_train_use_case(
-    use_megavul: bool, language: str, use_codexglue: bool, use_combined: bool, use_d2a: bool, use_reveal: bool, use_vulberta: bool, use_owasp: bool, use_deep_learning: bool = False
+    use_megavul: bool, language: str, use_codexglue: bool, use_combined: bool, use_d2a: bool, use_reveal: bool, use_vulberta: bool, use_owasp: bool, use_cvefixes: bool, use_deep_learning: bool = False
 ) -> TrainVulnerabilityModelUseCase:
     if use_owasp:
         repository = OWASPDatasetRepository(Path("data/owasp2025/train.jsonl"))
+    elif use_cvefixes:
+        repository = CVEFixesDatasetRepository(Path("data/CVEFixes.csv/CVEFixes.csv"))
     elif use_combined:
-        repository = CombinedDatasetRepository(limit_per_source=2000)
+        repository = CombinedDatasetRepository(limit_per_source=None)
     elif use_vulberta:
         repository = VulBERTaDatasetRepository(settings.base_dir / "data" / "data" / "finetune" / "mvd" / "mvd_train.pkl")
     elif use_reveal:
@@ -82,10 +85,11 @@ def train_command(args: argparse.Namespace) -> None:
     use_reveal = getattr(args, "use_reveal", False)
     use_vulberta = getattr(args, "use_vulberta", False)
     use_owasp = getattr(args, "use_owasp", False)
+    use_cvefixes = getattr(args, "use_cvefixes", False)
     use_deep_learning = getattr(args, "use_deep_learning", False)
     tune = getattr(args, "tune", False)
     language = getattr(args, "language", "c_cpp")
-    metrics = build_train_use_case(use_megavul, language, use_codexglue, use_combined, use_d2a, use_reveal, use_vulberta, use_owasp, use_deep_learning).execute(tune=tune)
+    metrics = build_train_use_case(use_megavul, language, use_codexglue, use_combined, use_d2a, use_reveal, use_vulberta, use_owasp, use_cvefixes, use_deep_learning).execute(tune=tune)
     print(json.dumps({"status": "trained", "metrics": metrics}, indent=2))
 
 
@@ -214,6 +218,7 @@ def main() -> None:
     train_parser.add_argument("--use-reveal", action="store_true", help="Use ReVeal (Chromium/Debian) vulnerability dataset")
     train_parser.add_argument("--use-vulberta", action="store_true", help="Use VulBERTa dataset")
     train_parser.add_argument("--use-owasp", action="store_true", help="Use generated OWASP Top 10 2025 dataset")
+    train_parser.add_argument("--use-cvefixes", action="store_true", help="Use CVEFixes dataset")
     train_parser.add_argument("--use-deep-learning", action="store_true", help="Use VulBERTa Deep Learning model instead of Random Forest")
     train_parser.add_argument("--tune", action="store_true", help="Perform hyperparameter tuning to find the best model configuration")
     train_parser.add_argument("--language", default="c_cpp", choices=["c_cpp", "java"], help="Language dataset to use for MegaVul")
