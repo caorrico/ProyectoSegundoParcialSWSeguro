@@ -26,7 +26,7 @@ REMEDIATION_GUIDE = {
 
 def run_inference(code_file_path):
     # 1. Cargar Pipeline Entrenado
-    model_path = PROJECT_ROOT / 'models' / 'modelo_final_cvefixes.joblib'
+    model_path = PROJECT_ROOT / 'models' / 'vulnerability_model.joblib'
     if not model_path.exists():
         print(f"Error: Modelo no encontrado en {model_path}")
         sys.exit(1)
