@@ -26,12 +26,20 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         return self
 
+    def _create_language(self, language_capsule):
+        try:
+            # Newer tree-sitter version (0.25+)
+            return tree_sitter.Language(language_capsule)
+        except TypeError:
+            # Older tree-sitter version
+            return tree_sitter.Language(language_capsule, name='')
+
     def _ensure_parsers(self):
         if self._cpp_parser is None:
-            cpp_lang = tree_sitter.Language(tree_sitter_cpp.language())
+            cpp_lang = self._create_language(tree_sitter_cpp.language())
             self._cpp_parser = tree_sitter.Parser(cpp_lang)
         if self._java_parser is None:
-            java_lang = tree_sitter.Language(tree_sitter_java.language())
+            java_lang = self._create_language(tree_sitter_java.language())
             self._java_parser = tree_sitter.Parser(java_lang)
 
     def transform(self, X, y=None):
