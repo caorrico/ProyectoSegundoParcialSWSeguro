@@ -123,8 +123,8 @@ jobs:
               `**Etapa:** ML Security Inference`,
               `**Estado:** ${report.status}`,
               `**Probabilidad de vulnerabilidad:** ${(report.probability * 100).toFixed(2)}%`,
-              `**Vulnerabilidades detectadas:** ${report.vulnerabilities.length > 0 ? report.vulnerabilities.join(', ') : 'Ninguna específica'}`,
-              `**Mitigación recomendada:** ${report.mitigation.length > 0 ? report.mitigation.join('; ') : 'No disponible'}`,
+              `**Vulnerabilidades detectadas:** ${report.vulnerabilities && report.vulnerabilities.length > 0 ? report.vulnerabilities.join(', ') : 'Ninguna específica'}`,
+              `**Mitigación recomendada:** ${report.mitigation && report.mitigation.length > 0 ? report.mitigation.join('; ') : 'No disponible'}`,
               '',
               '---',
               'El merge está bloqueado. Por favor, revisa el código en las líneas reportadas y aplica las mitigaciones sugeridas antes de reintentar.'
