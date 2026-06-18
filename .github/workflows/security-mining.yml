@@ -2,7 +2,7 @@ name: Security Mining CI
 
 on:
   pull_request:
-    branches: [main, test]
+    branches: [test]
 
 permissions:
   contents: read

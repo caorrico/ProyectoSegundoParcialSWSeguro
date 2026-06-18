@@ -20,7 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 # === EXTRACTORES DE ALTA FIDELIDAD (Iguales a los del entrenamiento) ===
-from scripts.final_training_pipeline import RobustASTFeatureExtractor, AdvancedTaintExtractor, EnhancedCodeMetrics
+from scripts.extractors import RobustASTFeatureExtractor, AdvancedTaintExtractor, EnhancedCodeMetrics
 
 # === GUÍA DE MITIGACIÓN (Estructurada) ===
 REMEDIATION_GUIDE = {
