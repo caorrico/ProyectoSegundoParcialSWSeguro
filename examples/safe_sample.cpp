@@ -19,7 +19,7 @@ int main() {
     // Hardcoded logic, no user input, no memory allocation, completely safe
     int fact = calculateFactorial(number);
     
-    std::cout << "The factorial of " << number << " is " << fact << std::endl;
+    std::cout << "The factorial of " << number << " is " << fact << std::endl
     
     return 0;
 }
