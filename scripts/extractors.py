@@ -22,7 +22,8 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
             except Exception:
                 self._unavailable = True
     
-    def fit(self, X, y=None): return self
+    def fit(self, X, y=None):
+        return self
     
     def transform(self, X, y=None):
         self._init_parsers()
@@ -61,12 +62,14 @@ class AdvancedTaintExtractor(BaseEstimator, TransformerMixin):
     SOURCES = [r'\$_GET', r'\$_POST', r'\bscanf\s*\(', r'\bread\s*\(', r'\bargv', r'\bgetenv']
     SINKS = [r'\bstrcpy\s*\(', r'\bexec\s*\(', r'\beval\s*\(', r'\bsystem\s*\(', r'SELECT.*FROM', r'\bmemcpy\s*\(']
     
-    def fit(self, X, y=None): return self
+    def fit(self, X, y=None):
+        return self
     
     def transform(self, X, y=None):
         features = []
         for code in X:
-            if not isinstance(code, str): code = ''
+            if not isinstance(code, str):
+                code = ''
             has_source = any(re.search(p, code) for p in self.SOURCES)
             has_sink = any(re.search(p, code) for p in self.SINKS)
             sanitizers = len(re.findall(r'\bescape\b|\bvalidate\b|\bfilter_var\b', code, re.IGNORECASE))
@@ -74,11 +77,13 @@ class AdvancedTaintExtractor(BaseEstimator, TransformerMixin):
         return csr_matrix(np.array(features, dtype=np.float64))
 
 class EnhancedCodeMetrics(BaseEstimator, TransformerMixin):
-    def fit(self, X, y=None): return self
+    def fit(self, X, y=None):
+        return self
     def transform(self, X, y=None):
         features = []
         for code in X:
-            if not isinstance(code, str): code = ''
+            if not isinstance(code, str):
+                code = ''
             lines = len(code.split('\n'))
             chars = len(code)
             pointers = len(re.findall(r'[*&]', code))

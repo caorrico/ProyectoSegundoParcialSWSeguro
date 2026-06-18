@@ -28,7 +28,8 @@ class SecurityFeatureExtractor(BaseEstimator, TransformerMixin):
         'buffer_overflow': [r'\bstrcpy\s*\(', r'\bstrcat\s*\(', r'\bsprintf\s*\(', r'\bgets\s*\('],
         'injection': [r'\bexec\s*\(', r'\beval\s*\(', r'\bsystem\s*\(', r'SELECT.*FROM'],
     }
-    def fit(self, X, y=None): return self
+    def fit(self, X, y=None):
+        return self
     def transform(self, X, y=None):
         features = []
         for code in X:

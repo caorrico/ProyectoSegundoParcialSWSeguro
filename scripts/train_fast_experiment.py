@@ -40,12 +40,14 @@ class SecurityFeatureExtractor(BaseEstimator, TransformerMixin):
     
     SAFE_PATTERNS = [r'\bstrncpy\s*\(', r'\bsnprintf\s*\(', r'\bsanitize', r'\bvalidate']
     
-    def fit(self, X, y=None): return self
+    def fit(self, X, y=None):
+        return self
     
     def transform(self, X, y=None):
         features = []
         for code in X:
-            if not isinstance(code, str): code = ''
+            if not isinstance(code, str):
+                code = ''
             row = []
             for category, patterns in self.DANGEROUS_FUNCTIONS.items():
                 count = sum(len(re.findall(p, code, re.IGNORECASE)) for p in patterns)
@@ -82,7 +84,8 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
             except Exception:
                 self._cpp_parser = 'unavailable'
     
-    def fit(self, X, y=None): return self
+    def fit(self, X, y=None):
+        return self
     
     def transform(self, X, y=None):
         self._init_parsers()
@@ -100,7 +103,8 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
                     while stack:
                         node = stack.pop()
                         node_count += 1
-                        for child in node.children: stack.append(child)
+                        for child in node.children:
+                            stack.append(child)
                     features.append([node_count, 0, 0, 0])
                 except Exception:
                     features.append([0, 0, 0, 0])
@@ -110,11 +114,13 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
         return np.array(['ast_nodes', 'ast_depth_placeholder', 'ast_calls_placeholder', 'ast_loops_placeholder'])
 
 class LanguageFeatureExtractor(BaseEstimator, TransformerMixin):
-    def fit(self, X, y=None): return self
+    def fit(self, X, y=None):
+        return self
     def transform(self, X, y=None):
         features = []
         for code in X:
-            if not isinstance(code, str): code = ''
+            if not isinstance(code, str):
+                code = ''
             is_java = 1 if 'public class' in code or 'import java' in code else 0
             is_cpp = 1 if '#include' in code or 'std::' in code else 0
             features.append([is_java, is_cpp])
@@ -126,17 +132,20 @@ class LanguageFeatureExtractor(BaseEstimator, TransformerMixin):
 
 def load_jsonl(path, code_field='func', label_field='target', limit=None):
     data = []
-    if not Path(path).exists(): return data
+    if not Path(path).exists():
+        return data
     with open(path, 'r', encoding='utf-8') as f:
         for i, line in enumerate(f):
-            if limit and i >= limit: break
+            if limit and i >= limit:
+                break
             try:
                 item = json.loads(line)
                 code = item.get(code_field) or item.get('code') or item.get('functionSource') or ''
                 label = item.get(label_field) or item.get('label') or 0
                 if code and len(code) > 10:
                     data.append({'raw_code': code, 'is_vulnerable': int(label)})
-            except Exception: continue
+            except Exception:
+                continue
     return data
 
 # === MAIN ===
