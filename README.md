@@ -10,7 +10,7 @@ clasicos de machine learning y analisis estatico; no depende de LLMs.
 - Entrena modelos de clasificacion para predecir codigo `SAFE` o `VULNERABLE`.
 - Evalua el modelo y guarda metricas en `reports/metrics.json`.
 - Predice riesgo desde metricas JSON o desde archivos de codigo fuente.
-- Escanea directorios completos con codigo C/C++, Java.
+- Escanea directorios completos con codigo C/C++, Java, Python, JavaScript, TypeScript, Go y Rust.
 - Expone una API FastAPI lista para Docker y Render.
 - Automatiza revision de seguridad en Pull Requests con GitHub Actions.
 - Notifica resultados por Telegram cuando los secrets estan configurados.
@@ -49,6 +49,16 @@ usa los ejecutables `.cmd` equivalentes cuando aplique. Este proyecto principal
 es Python.
 
 ## Uso rapido
+
+Flujo principal con data real usando el notebook:
+
+```bash
+jupyter notebook notebooks/train_vulnerability_model.ipynb
+```
+
+Ese notebook limpia y combina datasets reales, entrena un pipeline con XGBoost,
+evalua con holdout real por grupos, calibra el umbral de decision y guarda el
+modelo final en `models/vulnerability_model.joblib`.
 
 Entrenar con dataset sintetico numerico:
 
@@ -92,14 +102,217 @@ python -m pip check
 python -m pip_audit -r requirements.txt
 ```
 
+## Flujo del notebook con data real
+
+El flujo principal de entrenamiento esta en
+`notebooks/train_vulnerability_model.ipynb`. Esta ruta es la usada cuando se
+quiere entrenar con datos reales y dejar un modelo listo para el CLI, la API y
+los pipelines.
+
+### 1. Configuracion
+
+El notebook define:
+
+- `TEST_SIZE = 0.25`: 25% de datos reales para prueba.
+- `VALIDATION_SIZE = 0.20`: parte del entrenamiento real para calibrar umbral.
+- `SYNTHETIC_SOURCES = {'owasp2025'}`: OWASP sintetico se excluye de la evaluacion.
+- `FEATURE_COLUMNS = ['raw_code', 'language', 'source', 'code_length', 'line_count']`.
+- `THRESHOLD_METRIC = 'accuracy'`: metrica usada para elegir el mejor umbral.
+- `MIN_ACCURACY_TARGET = 0.82`: objetivo minimo de exactitud.
+- `USE_AST_FEATURES = True`.
+- `USE_SECURITY_PATTERN_FEATURES = True`.
+
+### 2. Limpieza y combinacion de datasets
+
+El notebook usa `build_clean_training_frame` para construir un dataset limpio y
+unificado. El resultado se guarda en:
+
+```text
+data/processed/combined_clean_vulnerability_dataset.csv
+```
+
+La limpieza normaliza columnas, elimina duplicados por hash, conserva metadatos
+como `source`, `language`, `group_id`, `code_hash`, `code_length` y `line_count`,
+y deja una etiqueta binaria:
+
+```text
+is_vulnerable = 0 | 1
+```
+
+Puede cargar datasets reales disponibles localmente, incluyendo CVEFixes cuando
+esta presente. Los ejemplos sinteticos OWASP pueden entrar al entrenamiento
+final, pero no se usan como test real.
+
+### 3. Split realista por grupos
+
+El notebook separa datos reales y sinteticos:
+
+```text
+real_df      -> fuentes reales
+synthetic_df -> OWASP sintetico
+```
+
+Luego usa `GroupShuffleSplit` con `group_id` o `code_hash`. Esto evita que dos
+fragmentos relacionados o duplicados queden a la vez en entrenamiento y prueba.
+
+La estrategia queda asi:
+
+- `fit_df`: entrena un modelo temporal.
+- `valid_df`: calibra el mejor umbral de decision.
+- `train_real_df`: entrena el modelo evaluado.
+- `test_df`: mide resultados finales solo con datos reales.
+
+### 4. Extraccion de features
+
+El notebook usa un `ColumnTransformer` que convierte codigo fuente y metadatos
+en features numericas:
+
+- `HashingVectorizer`: transforma `raw_code` en n-gramas de tokens de codigo.
+- `ASTFeatureExtractor`: extrae estructura sintactica del codigo.
+- `SecurityPatternFeatureExtractor`: cuenta patrones de seguridad y riesgo.
+- `OneHotEncoder`: codifica `language` y `source`.
+- `StandardScaler`: escala `code_length` y `line_count`.
+
+Las features AST actuales son:
+
+```text
+ast_node_count
+ast_max_depth
+ast_pointer_ops
+ast_function_calls
+ast_loops
+ast_if_statements
+```
+
+Las features de patrones de seguridad incluyen:
+
+```text
+security_lines_of_code
+security_token_count
+security_import_count
+security_dangerous_total
+security_sanitization_total
+security_net_risk_patterns
+security_dangerous_eval
+security_dangerous_exec
+security_dangerous_subprocess_shell
+security_dangerous_os_system
+security_dangerous_popen
+security_dangerous_sql_raw
+security_dangerous_pickle
+security_dangerous_yaml_load
+security_dangerous_unsafe_c
+security_dangerous_hardcoded_secret
+security_dangerous_taint_source_scanf
+security_dangerous_taint_source_read
+security_dangerous_taint_source_argv
+security_dangerous_taint_source_getenv
+security_sanitizer_parameterized_sql
+security_sanitizer_escape
+security_sanitizer_validation
+security_sanitizer_shell_false
+```
+
+### 5. Modelo usado
+
+El modelo del notebook es:
+
+```text
+XGBoost 300 balanced
+```
+
+Internamente usa `XGBClassifier` con:
+
+```text
+n_estimators=300
+max_depth=8
+learning_rate=0.1
+subsample=0.8
+colsample_bytree=0.8
+scale_pos_weight=<balance seguro/vulnerable>
+eval_metric=logloss
+```
+
+`scale_pos_weight` se calcula con la proporcion entre clases para compensar el
+desbalance entre codigo seguro y vulnerable.
+
+### 6. Calibracion del umbral
+
+El modelo devuelve una probabilidad de vulnerabilidad con:
+
+```python
+pipeline.predict_proba(X)[:, 1]
+```
+
+El notebook no asume siempre `0.50`. Prueba umbrales de `0.05` a `0.95` y elige
+`BEST_THRESHOLD` usando `accuracy`, con `f1` y `precision` como desempate.
+
+La decision final es:
+
+```python
+is_vulnerable = probability >= BEST_THRESHOLD
+```
+
+### 7. Evaluacion
+
+El notebook guarda y muestra:
+
+- `accuracy`
+- `precision`
+- `recall`
+- `f1_score`
+- `roc_auc`
+- matriz de confusion
+- classification report
+- metricas por lenguaje
+- metricas por fuente
+- curva ROC
+- curva Precision-Recall
+- accuracy por lenguaje
+- validacion cruzada con `cv=3` en una muestra del `fit_df`
+
+La estrategia de evaluacion registrada es:
+
+```text
+real_sources_group_holdout_with_validation_threshold
+```
+
+### 8. Guardado final
+
+Despues de evaluar, el notebook reentrena el pipeline final con:
+
+```text
+train_real_df + synthetic_df
+```
+
+El objetivo es aprovechar mas datos para el artefacto final, pero manteniendo
+una evaluacion honesta que ya se hizo sobre `test_df` real.
+
+Artefactos generados:
+
+```text
+models/vulnerability_model.joblib
+models/vectorizer.joblib
+reports/metrics.json
+reports/training_metadata.json
+```
+
+Ese `vulnerability_model.joblib` es el que luego usan:
+
+- `python -m app.interfaces.cli predict --raw-code ...`
+- `python -m app.interfaces.cli scan ...`
+- `uvicorn app.interfaces.api:app ...`
+- `.github/workflows/secure-pipeline.yml`
+
 ## Modelos y reportes
 
 Los artefactos principales son:
 
-- `models/vulnerability_model.joblib`: modelo usado por el CLI y la API.
-- `reports/metrics.json`: metricas de evaluacion del entrenamiento.
+- `models/vulnerability_model.joblib`: pipeline final del notebook o del CLI, usado por prediccion, API y pipeline.
+- `models/vectorizer.joblib`: transformador de features del notebook cuando se entrena con codigo real.
+- `reports/metrics.json`: metricas de evaluacion del entrenamiento, incluyendo threshold y holdout real cuando viene del notebook.
 - `reports/pr_security_scan.json`: reporte generado por el pipeline para PRs.
-- `reports/training_metadata.json`: metadata cuando se ejecuta entrenamiento avanzado.
+- `reports/training_metadata.json`: perfil de datos, configuracion, fuentes, conteos y umbral del notebook.
 
 Los modelos y reportes pesados pueden regenerarse y normalmente no deben
 versionarse salvo que se decida publicarlos como artefactos de release.
@@ -107,8 +320,10 @@ versionarse salvo que se decida publicarlos como artefactos de release.
 ## Tecnologias principales
 
 - Python 3.10+
-- scikit-learn, Random Forest, TF-IDF y pipelines de features
-- XGBoost y LightGBM para experimentacion avanzada
+- scikit-learn, pipelines, `ColumnTransformer`, `HashingVectorizer`, `OneHotEncoder` y `StandardScaler`
+- XGBoost como modelo principal del notebook con data real
+- Random Forest para el flujo CLI base con dataset sintetico/OWASP
+- LightGBM para experimentacion avanzada
 - pandas, numpy, scipy y joblib
 - tree-sitter para features AST de C/C++ y Java
 - SHAP para explicabilidad local del modelo
