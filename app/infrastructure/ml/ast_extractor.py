@@ -21,6 +21,42 @@ SYNTAX_MESSAGE_MAP: dict[str, str] = {
     ")": "Missing closing parenthesis",
     "}": "Missing closing brace",
     "]": "Missing closing bracket",
+    "{": "Missing opening brace",
+    "(": "Missing opening parenthesis",
+    "[": "Missing opening bracket",
+    ":": "Missing colon",
+    ",": "Missing comma",
+    "=": "Missing assignment operator",
+    "<": "Missing opening angle bracket",
+    ">": "Missing closing angle bracket",
+    "\"": "Unclosed string literal",
+    "'": "Unclosed character literal",
+}
+
+NODE_NAME_MAP: dict[str, str] = {
+    "else": "Missing 'else' clause",
+    "compound_statement": "Missing code block '{ }'",
+    "expression": "Missing expression statement",
+    "statement": "Missing statement",
+    "declaration": "Missing declaration",
+    "parameter_list": "Missing parameter list",
+    "argument_list": "Missing argument list",
+    "initializer_list": "Missing initializer list",
+    "function_definition": "Missing function definition",
+    "template_parameter_list": "Missing template parameter list",
+    "template_argument_list": "Missing template argument list",
+    "enumerator_list": "Missing enumerator list",
+    "switch_body": "Missing switch body '{ }'",
+    "field_initializer_list": "Missing field initializer list",
+    "base_class_clause": "Missing base class clause",
+    "field_declaration": "Missing field declaration",
+    "class_specifier": "Missing class definition '{ }'",
+    "lambda_introducer": "Missing lambda introducer '[ ]'",
+    "lambda_body": "Missing lambda body '{ }'",
+    "type_descriptor": "Missing type name",
+    "enumerator": "Missing enumerator",
+    "abstract_array_declarator": "Missing array declarator",
+    "dependent_name": "Missing dependent type name",
 }
 
 
@@ -165,15 +201,28 @@ def _collect_syntax_errors(node: tree_sitter.Node, errors: list[SyntaxError], li
     if node.type == "ERROR":
         row, col = node.start_point
         code_line = lines[row] if row < len(lines) else ""
-        errors.append(SyntaxError(line=row + 1, column=col, message="Syntax error", code_line=code_line))
+        error_text = node.text.decode("utf8") if node.text else ""
+        if not error_text:
+            msg = "Syntax error"
+        elif col == 0 and len(error_text) >= len(code_line):
+            msg = "Parse error at start of line - check for unclosed strings, comments, or braces"
+        else:
+            display_text = error_text[:30] + ("..." if len(error_text) > 30 else "")
+            msg = f"Unexpected token '{display_text}'"
+        errors.append(SyntaxError(line=row + 1, column=col, message=msg, code_line=code_line))
     if node.is_missing:
         row, col = node.start_point
         token = node.type
-        msg = SYNTAX_MESSAGE_MAP.get(token, f"Missing token '{token}'")
         code_line = lines[row] if row < len(lines) else ""
+        msg = SYNTAX_MESSAGE_MAP.get(token) or NODE_NAME_MAP.get(token) or _friendly_node_name(token)
         errors.append(SyntaxError(line=row + 1, column=col, message=msg, code_line=code_line))
     for child in node.children:
         _collect_syntax_errors(child, errors, lines)
+
+
+def _friendly_node_name(name: str) -> str:
+    readable = name.replace("_", " ")
+    return f"Missing: {readable}"
 
 
 def _suffix(filename: str) -> str:
