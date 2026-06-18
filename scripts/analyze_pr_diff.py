@@ -112,11 +112,11 @@ def analyze_files(
                 print(f"        {err.code_line}")
                 print(f"        {marker}")
                 vulnerability_types.append(f"Syntax Error: {err.message} at line {err.line}:{err.column}")
+                recommendations.append(
+                    f"Fix {path.name}:{err.line}:{err.column} - {err.message}. "
+                    f"Review the reported line and add the missing token."
+                )
             cwe_ids.append("CWE-000")
-            recommendations.append(
-                "Fix syntax errors: review each reported line for missing tokens (semicolons, braces, parentheses) "
-                "and ensure the code compiles before merging."
-            )
         
         print(f"🤖 [SEMMA: MODEL] Model inference probability: {probability * 100:.2f}%")
         rule_vulnerable = bool(
