@@ -50,10 +50,13 @@ jobs:
 
       - name: Prepare model
         run: |
-          echo "Forcing re-training to ensure environment compatibility..."
-          python scripts/generate_owasp_dataset.py
-          python -m app.interfaces.cli train --use-owasp
-          echo "Model re-trained and compatible with CI/CD environment."
+          if [ ! -f models/vulnerability_model.joblib ]; then
+            echo "Model not found. Generating dataset and training..."
+            python scripts/generate_owasp_dataset.py
+            python -m app.interfaces.cli train --use-owasp
+          else
+            echo "Model found. Skipping training."
+          fi
 
       - name: Detect changed source files
         run: |
