@@ -88,27 +88,53 @@ Las actividades principales fueron:
 
 \section{Arquitectura de la solución}
 
+La arquitectura del pipeline integra una etapa de análisis estático heurístico (basado en expresiones regulares para detectar patrones de llamadas a funciones peligrosas como \texttt{strcpy}, \texttt{gets}, \texttt{eval}, etc.) antes de la inferencia del modelo de Machine Learning, asegurando una detección rápida de vulnerabilidades conocidas.
+
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-    node distance=1.6cm,
-    every node/.style={draw, rounded corners, align=center, minimum width=3.2cm, minimum height=0.85cm},
+    node distance=1.4cm,
+    every node/.style={draw, rounded corners, align=center, minimum width=3.5cm, minimum height=0.9cm},
     every path/.style={-{Latex}}
 ]
-    \node (pr) {Pull Request};
-    \node (diff) [below of=pr] {Extracción de archivos\\ modificados};
-    \node (scan) [below of=diff] {Modelo ML + reglas\\ de seguridad};
+    \node (pr) {Pull Request (dev)};
+    \node (diff) [below of=pr] {Extracción de Diff};
+    \node (pre) [below of=diff] {Análisis Estático (Heurístico)};
+    \node (scan) [below of=pre] {Modelo ML (Clasificador)};
     \node (gate) [below of=scan] {Decisión\\ SAFE/VULNERABLE};
-    \node (safe) [below left of=gate, xshift=-1.2cm] {Tests + merge\\ a test};
-    \node (vuln) [below right of=gate, xshift=1.2cm] {Bloqueo + issue\\ + Telegram};
+    \node (safe) [below left of=gate, xshift=-1.5cm] {Tests + Merge\\ a test};
+    \node (vuln) [below right of=gate, xshift=1.5cm] {Bloqueo + Issue\\ + Telegram};
     \draw (pr) -- (diff);
-    \draw (diff) -- (scan);
+    \draw (diff) -- (pre);
+    \draw (pre) -- (scan);
     \draw (scan) -- (gate);
-    \draw (gate) -- node[left, draw=none] {SAFE} (safe);
-    \draw (gate) -- node[right, draw=none] {VULNERABLE} (vuln);
+    \draw (gate) -- node[left, draw=none, font=\small] {SAFE} (safe);
+    \draw (gate) -- node[right, draw=none, font=\small] {VULNERABLE} (vuln);
 \end{tikzpicture}
-\caption{Flujo DevSecOps implementado para revisión segura de Pull Requests.}
+\caption{Flujo DevSecOps mejorado con pre-análisis estático y ML.}
 \end{figure}
+
+\section{Análisis Estático y Entrenamiento}
+El pre-análisis heurístico utiliza expresiones regulares definidas en \texttt{scripts/ci\_inference\_pipeline.py} para identificar llamadas a funciones peligrosas (vulnerabilidades de desbordamiento de búfer e inyección). El entrenamiento del modelo se realiza siguiendo un proceso de carga de datos, limpieza, extracción de características (AST y patrones de seguridad), y clasificación mediante \texttt{XGBClassifier} optimizado con \textit{scale\_pos\_weight} para manejar el desbalance de clases.\par
+El flujo de entrenamiento se describe en el siguiente diagrama de flujo:
+\begin{center}
+\begin{tikzpicture}[
+    node distance=1.2cm,
+    every node/.style={draw, rounded corners, align=center, minimum width=3.0cm, minimum height=0.7cm},
+    every path/.style={-{Latex}}
+]
+    \node (data) {Carga Datasets};
+    \node (clean) [below of=data] {Limpieza y Unificación};
+    \node (feat) [below of=clean] {Extracción Features (AST, Regex)};
+    \node (train) [below of=feat] {Entrenamiento Modelo (XGBoost)};
+    \node (save) [below of=train] {Guardado (.joblib)};
+    \draw (data) -- (clean);
+    \draw (clean) -- (feat);
+    \draw (feat) -- (train);
+    \draw (train) -- (save);
+\end{tikzpicture}
+\end{center}
+
 
 \section{Fragmentos relevantes}
 
