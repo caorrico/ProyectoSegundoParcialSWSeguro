@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
-import pandas as pd
-import json
-import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
-import random
 
 # Fix imports
 PROJECT_ROOT = Path('.').resolve()
@@ -19,7 +15,7 @@ from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.linear_model import SGDClassifier
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay, roc_auc_score, roc_curve, precision_recall_curve
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 
 # Configuration
 TEST_SIZE = 0.25
@@ -34,7 +30,7 @@ def run_notebook_logic():
     
     print("--- 2. Split ---")
     real_df = df[~df['source'].isin(SYNTHETIC_SOURCES)].copy()
-    synthetic_df = df[df['source'].isin(SYNTHETIC_SOURCES)].copy()
+    df[df['source'].isin(SYNTHETIC_SOURCES)].copy()
     
     real_groups = real_df['group_id'].where(real_df['group_id'].astype(str).str.len() > 0, real_df['code_hash'])
     splitter = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=42)
@@ -52,10 +48,10 @@ def run_notebook_logic():
     
     X_fit = fit_df[FEATURE_COLUMNS]
     y_fit = fit_df['is_vulnerable'].astype(int)
-    X_valid = valid_df[FEATURE_COLUMNS]
-    y_valid = valid_df['is_vulnerable'].astype(int)
-    X_train = train_real_df[FEATURE_COLUMNS]
-    y_train = train_real_df['is_vulnerable'].astype(int)
+    valid_df[FEATURE_COLUMNS]
+    valid_df['is_vulnerable'].astype(int)
+    train_real_df[FEATURE_COLUMNS]
+    train_real_df['is_vulnerable'].astype(int)
     X_test = test_df[FEATURE_COLUMNS]
     y_test = test_df['is_vulnerable'].astype(int)
 

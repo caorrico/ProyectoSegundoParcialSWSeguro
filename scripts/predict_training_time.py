@@ -4,7 +4,6 @@ Experimento para predecir la curva de tiempo de entrenamiento.
 Ejecuta benchmarks con tamaños crecientes y proyecta el tiempo total.
 """
 import sys
-import os
 import json
 import re
 import time
@@ -12,9 +11,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.pipeline import Pipeline, FeatureUnion
+from sklearn.pipeline import FeatureUnion
 from sklearn.base import BaseEstimator, TransformerMixin
 from scipy.sparse import csr_matrix
 
@@ -46,7 +44,8 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
     def _init(self):
         if self._parser is None:
             try:
-                import tree_sitter, tree_sitter_cpp
+                import tree_sitter
+                import tree_sitter_cpp
                 lang = tree_sitter.Language(tree_sitter_cpp.language(), 'cpp')
                 self._parser = tree_sitter.Parser()
                 self._parser.set_language(lang)

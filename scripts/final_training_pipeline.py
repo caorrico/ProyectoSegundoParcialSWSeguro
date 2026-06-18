@@ -5,17 +5,13 @@ Consolidado para evitar errores de importación y guardar gráficos.
 """
 import sys
 import random
-import re
-import joblib
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import FeatureUnion, Pipeline as SkPipeline
-from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay, roc_curve, precision_recall_curve, roc_auc_score
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import FeatureUnion
+from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay, roc_curve, roc_auc_score
 from sklearn.feature_extraction.text import TfidfVectorizer
-from scipy.sparse import csr_matrix
 from xgboost import XGBClassifier
 
 # Agregar project root al path
@@ -24,7 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.infrastructure.repositories.combined_dataset_repository import CombinedDatasetRepository
 
-from scripts.extractors import RobustASTFeatureExtractor, AdvancedTaintExtractor, EnhancedCodeMetrics
+from scripts.extractors import RobustASTFeatureExtractor, EnhancedCodeMetrics
 
 # === PIPELINE FINAL ===
 
