@@ -13,7 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app.application.use_cases.predict_vulnerability import CodeAnalyzer  # noqa: E402
 from app.domain.entities import RawCodeModule  # noqa: E402
-from app.infrastructure.ml.ast_extractor import SyntaxError, validate_code_syntax  # noqa: E402
+from app.infrastructure.ml.ast_extractor import validate_code_syntax  # noqa: E402
 from app.infrastructure.ml.code_feature_extractor import extract_code_features  # noqa: E402
 from app.infrastructure.ml.random_forest_predictor import RandomForestPredictor  # noqa: E402
 from app.shared.settings import settings  # noqa: E402
