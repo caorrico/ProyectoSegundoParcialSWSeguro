@@ -32,6 +32,8 @@ SOURCE_EXTENSIONS = {
     ".ts",
     ".go",
     ".rs",
+    ".html",
+    ".htm",
 }
 
 EXCLUDED_DIRS = {"app", "scripts", "tests", ".github", "notebooks", "docs", "data", "models", "reports"}
