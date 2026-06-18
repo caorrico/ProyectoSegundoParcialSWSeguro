@@ -207,7 +207,9 @@ def _collect_syntax_errors(node: tree_sitter.Node, errors: list[SyntaxError], li
         elif col == 0 and len(error_text) >= len(code_line):
             msg = "Parse error at start of line - check for unclosed strings, comments, or braces"
         else:
-            display_text = error_text[:30] + ("..." if len(error_text) > 30 else "")
+            display_text = error_text.replace("\n", " ").replace("\r", " ")[:30]
+            if len(error_text) > 30:
+                display_text += "..."
             msg = f"Unexpected token '{display_text}'"
         errors.append(SyntaxError(line=row + 1, column=col, message=msg, code_line=code_line))
     if node.is_missing:
