@@ -1,18 +1,17 @@
 name: Security Mining CI
 
 on:
-  push:
-    branches: [main, test, dev]
   pull_request:
-    branches: [main, test, dev]
-  workflow_dispatch:
+    branches: [main, test]
 
 permissions:
   contents: read
+  pull-requests: write
+  issues: write
 
 jobs:
   validate:
-    name: Validate project
+    name: Security Analysis
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -31,17 +30,72 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Lint
-        run: python -m ruff check .
+      - name: Notify Security Start
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/send_telegram.py --message "🚀 Inicio de revisión de seguridad en el PR #${{ github.event.pull_request.number }}"
 
-      - name: Unit tests
-        run: python -m pytest -q
+      - name: Security Inference
+        id: security_analysis
+        run: |
+          python scripts/ci_inference_pipeline.py examples/vulnerable_sample.cpp > report.json || true
+        
+      - name: Notify Security Result
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -f security_report.json ]; then
+            # Parsear el reporte JSON para Telegram
+            MESSAGE=$(python -c "
+import json
+try:
+    r = json.load(open('security_report.json'))
+    vuln = 'VULNERABLE' if r['vulnerable'] else 'SEGURO'
+    prob = f'{r[\"probability\"]*100:.2f}%'
+    vtypes = ', '.join(r['vulnerabilities']) if r['vulnerabilities'] else 'Ninguna'
+    mitig = '\n'.join(r['mitigation']) if r['mitigation'] else 'N/A'
+    print(f'🚨 *Resultado: {vuln}*\n*Probabilidad:* {prob}\n*Tipo:* {vtypes}\n*Mitigación:*\n{mitig}')
+except:
+    print('⚠️ Error al procesar el reporte de seguridad.')
+")
+            python scripts/send_telegram.py --message "$MESSAGE" --parse-mode "Markdown"
+          else
+            python scripts/send_telegram.py --message "⚠️ Error: No se generó reporte de seguridad."
+          fi
 
-      - name: Build OWASP sample dataset
-        run: python scripts/generate_owasp_dataset.py
-
-      - name: Train lightweight model
-        run: python -m app.interfaces.cli train --use-owasp
-
-      - name: Smoke-test prediction
-        run: python -m app.interfaces.cli predict --raw-code examples/sql_injection_sample.cpp
+      - name: Comment on PR if vulnerable
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('security_report.json')) {
+              const report = JSON.parse(fs.readFileSync('security_report.json', 'utf8'));
+              if (report.vulnerable) {
+                const comment = `### 🚨 ALERTA DE SEGURIDAD: Código Vulnerable Detectado
+                **Probabilidad:** ${(report.probability * 100).toFixed(2)}%
+                **Vulnerabilidades:** ${report.vulnerabilities.join(', ')}
+                **Mitigación:** ${report.mitigation.join('\n')}`;
+                
+                github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: comment
+                });
+                
+                github.rest.issues.addLabels({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['fixing-required']
+                });
+                
+                core.setFailed('Código vulnerable detectado. PR bloqueado.');
+              }
+            }

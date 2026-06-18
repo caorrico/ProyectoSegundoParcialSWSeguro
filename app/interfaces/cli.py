@@ -208,7 +208,7 @@ def scan_command(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Secure data mining vulnerability predictor")
-    subparsers = parser.add_subparsers(required=True)
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
     train_parser = subparsers.add_parser("train", help="Train vulnerability prediction model")
     train_parser.add_argument("--use-megavul", action="store_true", help="Use MegaVul dataset instead of the synthetic dataset")
