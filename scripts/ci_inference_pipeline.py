@@ -9,10 +9,6 @@ import joblib
 import json
 import pandas as pd
 from pathlib import Path
-from sklearn.base import BaseEstimator, TransformerMixin
-from scipy.sparse import csr_matrix, hstack
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.pipeline import FeatureUnion
 
 # Agregar project root al path
 PROJECT_ROOT = Path('.').resolve()
@@ -20,7 +16,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 # === EXTRACTORES DE ALTA FIDELIDAD (Iguales a los del entrenamiento) ===
-from scripts.extractors import RobustASTFeatureExtractor, AdvancedTaintExtractor, EnhancedCodeMetrics
 
 # === GUÍA DE MITIGACIÓN (Estructurada) ===
 REMEDIATION_GUIDE = {
@@ -31,7 +26,7 @@ REMEDIATION_GUIDE = {
 
 def run_inference(code_file_path):
     # 1. Cargar Pipeline Entrenado
-    model_path = PROJECT_ROOT / 'models' / 'modelo_final_cvefixes.joblib'
+    model_path = PROJECT_ROOT / 'models' / 'vulnerability_model.joblib'
     if not model_path.exists():
         print(f"Error: Modelo no encontrado en {model_path}")
         sys.exit(1)
@@ -43,8 +38,10 @@ def run_inference(code_file_path):
     detected_patterns = []
     
     # Análisis heurístico básico previo al ML
-    if re.search(r'\bgets\s*\(', code): detected_patterns.append('buffer_overflow')
-    if re.search(r'\beval\s*\(', code): detected_patterns.append('injection')
+    if re.search(r'\bgets\s*\(', code):
+        detected_patterns.append('buffer_overflow')
+    if re.search(r'\beval\s*\(', code):
+        detected_patterns.append('injection')
     
     # 3. Inferencia con Modelo ML
     features = pd.DataFrame([{'raw_code': code, 'language': 'cpp', 'source': 'pr_analysis', 'code_length': len(code), 'line_count': len(code.splitlines())}])

@@ -4,18 +4,16 @@ Experimento de entrenamiento rápido con un subset pequeño de datos.
 Basado en el notebook entrenamiento_avanzado.ipynb.
 """
 import sys
-import os
 import json
 import re
 import time
-import random
 from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.pipeline import Pipeline, FeatureUnion
+from sklearn.pipeline import FeatureUnion
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from sklearn.base import BaseEstimator, TransformerMixin
 from scipy.sparse import csr_matrix
@@ -75,8 +73,8 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
                 import tree_sitter
                 import tree_sitter_cpp
                 import tree_sitter_java
-                cpp_lang = tree_sitter.Language(tree_sitter_cpp.language(), 'cpp')
-                java_lang = tree_sitter.Language(tree_sitter_java.language(), 'java')
+                cpp_lang = tree_sitter.Language(tree_sitter_cpp.language())
+                java_lang = tree_sitter.Language(tree_sitter_java.language())
                 self._cpp_parser = tree_sitter.Parser()
                 self._cpp_parser.set_language(cpp_lang)
                 self._java_parser = tree_sitter.Parser()

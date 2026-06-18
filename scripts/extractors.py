@@ -30,7 +30,8 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
         features = []
         for code in X:
             if not isinstance(code, str) or not code.strip():
-                features.append([0]*6); continue
+                features.append([0]*6)
+                continue
             
             if self._unavailable:
                 features.append([len(code.split()), 0, 0, 0, 0, 0])
@@ -40,7 +41,7 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
                     tree = parser.parse(bytes(code, 'utf8'))
                     stats = self._extract_stats(tree.root_node)
                     features.append([stats['node_count'], stats['max_depth'], stats['pointer_ops'], stats['function_calls'], stats['loops'], stats['if_statements']])
-                except:
+                except Exception:
                     features.append([len(code.split()), 0, 0, 0, 0, 0])
         return csr_matrix(np.array(features))
 
@@ -51,11 +52,16 @@ class RobustASTFeatureExtractor(BaseEstimator, TransformerMixin):
             node, depth = stack.pop()
             stats['node_count'] += 1
             stats['max_depth'] = max(stats['max_depth'], depth)
-            if node.type in ['pointer_declarator', 'reference_declarator', 'pointer_expression']: stats['pointer_ops'] += 1
-            if node.type in ['call_expression', 'method_invocation']: stats['function_calls'] += 1
-            if node.type in ['while_statement', 'for_statement', 'do_statement']: stats['loops'] += 1
-            if node.type in ['if_statement']: stats['if_statements'] += 1
-            for child in node.children: stack.append((child, depth + 1))
+            if node.type in ['pointer_declarator', 'reference_declarator', 'pointer_expression']:
+                stats['pointer_ops'] += 1
+            if node.type in ['call_expression', 'method_invocation']:
+                stats['function_calls'] += 1
+            if node.type in ['while_statement', 'for_statement', 'do_statement']:
+                stats['loops'] += 1
+            if node.type in ['if_statement']:
+                stats['if_statements'] += 1
+            for child in node.children:
+                stack.append((child, depth + 1))
         return stats
 
 class AdvancedTaintExtractor(BaseEstimator, TransformerMixin):
