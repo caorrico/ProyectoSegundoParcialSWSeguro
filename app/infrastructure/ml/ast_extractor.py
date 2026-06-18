@@ -1,10 +1,26 @@
 import re
+from dataclasses import dataclass
 
 import numpy as np
 import tree_sitter
 import tree_sitter_cpp
 import tree_sitter_java
 from sklearn.base import BaseEstimator, TransformerMixin
+
+
+@dataclass
+class SyntaxError:
+    line: int
+    column: int
+    message: str
+
+
+SYNTAX_MESSAGE_MAP: dict[str, str] = {
+    ";": "Missing semicolon",
+    ")": "Missing closing parenthesis",
+    "}": "Missing closing brace",
+    "]": "Missing closing bracket",
+}
 
 
 class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
@@ -28,10 +44,8 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
 
     def _create_language(self, language_capsule):
         try:
-            # Newer tree-sitter version (0.25+)
             return tree_sitter.Language(language_capsule)
         except TypeError:
-            # Older tree-sitter version
             return tree_sitter.Language(language_capsule, name='')
 
     def _ensure_parsers(self):
@@ -117,3 +131,46 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
                 "ast_if_statements",
             ]
         )
+
+
+def validate_code_syntax(code: str, filename: str = "") -> list[SyntaxError]:
+    suffix = _suffix(filename)
+    if suffix in {".py", ".js", ".ts", ".go", ".rs"}:
+        return []
+
+    try:
+        if suffix in {".java"} or re.search(r"\b(public\s+class|import\s+java)\b", code):
+            lang = tree_sitter.Language(tree_sitter_java.language())
+        else:
+            lang = tree_sitter.Language(tree_sitter_cpp.language())
+
+        parser = tree_sitter.Parser(lang)
+        tree = parser.parse(bytes(code, "utf8"))
+
+        if not tree.root_node.has_error:
+            return []
+
+        syntax_errors: list[SyntaxError] = []
+        _collect_syntax_errors(tree.root_node, syntax_errors)
+        return syntax_errors
+
+    except Exception:
+        return [SyntaxError(line=0, column=0, message="Failed to parse code (unknown parse error)")]
+
+
+def _collect_syntax_errors(node: tree_sitter.Node, errors: list[SyntaxError]) -> None:
+    if node.type == "ERROR":
+        row, col = node.start_point
+        errors.append(SyntaxError(line=row + 1, column=col, message="Syntax error"))
+    if node.is_missing:
+        row, col = node.start_point
+        token = node.type
+        msg = SYNTAX_MESSAGE_MAP.get(token, f"Missing token '{token}'")
+        errors.append(SyntaxError(line=row + 1, column=col, message=msg))
+    for child in node.children:
+        _collect_syntax_errors(child, errors)
+
+
+def _suffix(filename: str) -> str:
+    idx = filename.rfind(".")
+    return filename[idx:].lower() if idx != -1 else ""

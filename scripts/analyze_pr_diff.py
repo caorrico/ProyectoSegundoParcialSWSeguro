@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app.application.use_cases.predict_vulnerability import CodeAnalyzer  # noqa: E402
 from app.domain.entities import RawCodeModule  # noqa: E402
+from app.infrastructure.ml.ast_extractor import SyntaxError, validate_code_syntax  # noqa: E402
 from app.infrastructure.ml.code_feature_extractor import extract_code_features  # noqa: E402
 from app.infrastructure.ml.random_forest_predictor import RandomForestPredictor  # noqa: E402
 from app.shared.settings import settings  # noqa: E402
@@ -68,6 +69,11 @@ def main() -> None:
 def analyze_files(
     files: list[Path], threshold: float = 0.50, allow_missing_model: bool = False
 ) -> dict[str, Any]:
+    print("\n" + "="*50)
+    print("🧪 [SEMMA: SAMPLE] Loading changed files from PR")
+    print(f"Total files to inspect: {len(files)}")
+    print("="*50)
+
     if not settings.model_path.exists():
         if allow_missing_model:
             return {
@@ -93,10 +99,25 @@ def analyze_files(
         if not code.strip():
             continue
 
+        print(f"\n🔧 [SEMMA: MODIFY] Extracting security features from: {path.name}")
         prediction, probability = predictor.predict(RawCodeModule(code))
         probability = round(float(probability), 4)
         vulnerability_types, cwe_ids, recommendations = CodeAnalyzer.analyze_raw_code(code)
         feature_summary = extract_code_features(code, path)
+
+        syntax_errors = validate_code_syntax(code, str(path))
+        if syntax_errors:
+            print(f"  ❌ Syntax errors detected:")
+            for err in syntax_errors:
+                print(f"     Line {err.line}:{err.column} - {err.message}")
+                vulnerability_types.append(f"Syntax Error: {err.message} at line {err.line}:{err.column}")
+            cwe_ids.append("CWE-000")
+            recommendations.append(
+                "Fix syntax errors: review each reported line for missing tokens (semicolons, braces, parentheses) "
+                "and ensure the code compiles before merging."
+            )
+        
+        print(f"🤖 [SEMMA: MODEL] Model inference probability: {probability * 100:.2f}%")
         rule_vulnerable = bool(
             vulnerability_types or cwe_ids or feature_summary.suspicious_patterns
         )
@@ -115,10 +136,14 @@ def analyze_files(
                 "cwe_ids": cwe_ids,
                 "recommendations": recommendations,
                 "features": feature_summary.to_dict(),
+                "syntax_errors": [{"line": e.line, "column": e.column, "message": e.message} for e in syntax_errors],
             }
         )
 
     status = "VULNERABLE" if vulnerable_count else "SAFE"
+    print("\n📊 [SEMMA: ASSESS] Consolidating security scan result")
+    print(f"Final Decision: {status} (Max Probability: {max_probability * 100:.2f}%)")
+    
     return {
         "status": status,
         "probability": round(max_probability, 4),
