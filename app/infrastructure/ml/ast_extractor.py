@@ -1,9 +1,9 @@
 import numpy as np
+import re
 import tree_sitter
 import tree_sitter_cpp
 import tree_sitter_java
 from sklearn.base import BaseEstimator, TransformerMixin
-import re
 
 class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
     def __init__(self):
@@ -13,10 +13,8 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, y=None):
-        cpp_lang = tree_sitter.Language(tree_sitter_cpp.language())
-        java_lang = tree_sitter.Language(tree_sitter_java.language())
-        cpp_parser = tree_sitter.Parser(cpp_lang)
-        java_parser = tree_sitter.Parser(java_lang)
+        cpp_parser = self._build_parser(tree_sitter_cpp.language)
+        java_parser = self._build_parser(tree_sitter_java.language)
 
         features = []
         for code in X:
@@ -42,6 +40,15 @@ class ASTFeatureExtractor(BaseEstimator, TransformerMixin):
             ])
             
         return np.array(features)
+
+    def _build_parser(self, language_factory):
+        language = tree_sitter.Language(language_factory())
+        parser = tree_sitter.Parser()
+        if hasattr(parser, "set_language"):
+            parser.set_language(language)
+        else:
+            parser.language = language
+        return parser
 
     def _extract_stats(self, root_node):
         stats = {

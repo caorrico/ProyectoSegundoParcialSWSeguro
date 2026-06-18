@@ -136,6 +136,8 @@ class BaseTrainer(ABC):
         if self._model_path is not None:
             self._model_path.parent.mkdir(parents=True, exist_ok=True)
             joblib.dump(model, self._model_path)
+            if is_syntactic and hasattr(model, "named_steps"):
+                joblib.dump(model.named_steps["features"], self._model_path.parent / "vectorizer.joblib")
 
         if self._report_path is not None:
             self._report_path.parent.mkdir(parents=True, exist_ok=True)

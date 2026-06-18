@@ -92,7 +92,7 @@ class VulBERTaWrapper(BaseEstimator, ClassifierMixin):
                     probabilities.append([1.0 - score, score])
                 else:
                     probabilities.append([score, 1.0 - score])
-            except Exception as e:
+            except Exception:
                 probabilities.append([1.0, 0.0])  # Default to safe
                 
         import numpy as np

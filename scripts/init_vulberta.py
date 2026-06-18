@@ -1,9 +1,6 @@
 import json
-import sys
 import time
-from pathlib import Path
 from app.infrastructure.ml.vulberta_trainer import VulBERTaTrainer
-from app.domain.contracts import Dataset
 from app.shared.settings import settings
 
 def main():

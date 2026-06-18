@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Dict, Mapping, Protocol, Sequence, Tuple, Union
 
 from app.domain.entities import CodeModuleMetrics, RawCodeModule, VulnerabilityPrediction
@@ -23,7 +24,7 @@ class ModelPredictor(Protocol):
     def predict(self, metrics: Union[CodeModuleMetrics, RawCodeModule]) -> Tuple[bool, float]:
         ...
 
-    def generate_explanation(self, metrics: Union[CodeModuleMetrics, RawCodeModule], report_path: "Path") -> None:
+    def generate_explanation(self, metrics: Union[CodeModuleMetrics, RawCodeModule], report_path: Path) -> None:
         ...
 
 class PredictionUseCase(Protocol):

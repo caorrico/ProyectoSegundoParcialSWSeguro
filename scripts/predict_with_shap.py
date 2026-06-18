@@ -4,8 +4,8 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
-from app.domain.entities import RawCodeModule
-from app.infrastructure.ml.random_forest_predictor import RandomForestPredictor
+from app.domain.entities import RawCodeModule  # noqa: E402
+from app.infrastructure.ml.random_forest_predictor import RandomForestPredictor  # noqa: E402
 
 def main():
     # Use the model trained with CVEFixes

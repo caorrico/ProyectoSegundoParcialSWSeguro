@@ -3,26 +3,25 @@ Download CVEFixes vulnerability detection dataset.
 HuggingFace: starsofchance/CVEfixes_v1.0.8
 """
 import sys
-import os
 import subprocess
 from pathlib import Path
+import importlib.util
 
 def write_progress(msg):
     print(msg, flush=True)
 
 def ensure_datasets():
     write_progress("Checking if 'datasets' library is installed...")
-    try:
-        import datasets
+    if importlib.util.find_spec("datasets") is not None:
         write_progress("datasets library is already installed.")
-    except ImportError:
-        write_progress("Installing 'datasets' library via pip...")
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "datasets"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            write_progress("datasets library installed successfully.")
-        except Exception as e:
-            write_progress(f"Failed to install datasets: {str(e)}")
-            raise
+        return
+    write_progress("Installing 'datasets' library via pip...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "datasets"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        write_progress("datasets library installed successfully.")
+    except Exception as e:
+        write_progress(f"Failed to install datasets: {str(e)}")
+        raise
 
 def download_cvefixes():
     write_progress("Starting download process for CVEFixes...")

@@ -6,11 +6,10 @@ Dataset: google/code_x_glue_cc_defect_detection
 import sys
 import subprocess
 from pathlib import Path
+import importlib.util
 
 def ensure_datasets():
-    try:
-        import datasets
-    except ImportError:
+    if importlib.util.find_spec("datasets") is None:
         print("Installing 'datasets' library...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "datasets"])
 

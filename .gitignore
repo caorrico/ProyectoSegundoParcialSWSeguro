@@ -91,6 +91,7 @@ models/*.safetensors
 data/codexglue/
 data/d2a/
 data/reveal/
+data/data/
 data/megavul/
 megavul/
 data/raw/*

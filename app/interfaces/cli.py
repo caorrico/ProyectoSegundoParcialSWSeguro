@@ -145,7 +145,7 @@ def scan_command(args: argparse.Namespace) -> None:
         return
 
     print(f"\n{'='*70}")
-    print(f"  VULNERABILITY SCAN REPORT")
+    print("  VULNERABILITY SCAN REPORT")
     print(f"  Target: {target_dir.resolve()}")
     print(f"  Files to scan: {len(source_files)}")
     print(f"{'='*70}\n")
@@ -180,7 +180,7 @@ def scan_command(args: argparse.Namespace) -> None:
     vulnerable = sum(1 for r in results if r["is_vulnerable"])
 
     print(f"\n{'='*70}")
-    print(f"  SCAN SUMMARY")
+    print("  SCAN SUMMARY")
     print(f"{'='*70}")
     print(f"  Total files scanned : {total}")
     print(f"  [!!!] HIGH risk     : {high}")
