@@ -213,3 +213,13 @@ debug_*.py
 # ─── Sphinx docs ─────────────────────────────────────────────────────────────
 docs/_build/
 /site
+
+# LaTeX build artifacts
+*.aux
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
