@@ -236,3 +236,5 @@ docs/_build/
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+
+#añadir extras
