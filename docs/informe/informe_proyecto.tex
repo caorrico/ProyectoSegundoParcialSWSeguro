@@ -167,6 +167,34 @@ CWE-502 & \texttt{ObjectInputStream.readObject} & Migrar a formatos seguros como
 \end{tabular}
 \end{table}
 
+\section{Evaluación de Resultados (Fase ASSESS)}
+
+\subsection{Métricas Globales}
+La evaluación se realizó sobre un conjunto de prueba del 25\% (97,334 registros). La Figura \ref{fig:metrics_full} detalla el rendimiento del modelo a través de cuatro perspectivas fundamentales: matriz de confusión, curva ROC, curva Precisión-Recall y rendimiento por lenguaje.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/metrics.png}
+\caption{Visualización detallada de las métricas de desempeño del modelo: Matriz de confusión, Curva ROC (AUC=0.840), Curva Precisión-Recall y Accuracy segmentado por lenguaje.}
+\label{fig:metrics_full}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Resumen de Métricas del Modelo de Producción}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Métrica} & \textbf{Valor} & \textbf{Interpretación} \\
+\midrule
+Accuracy & 0.9205 & Proporción total de aciertos. \\
+ROC AUC & 0.8444 & Capacidad de discriminación entre clases. \\
+Precision (Vuln) & 0.4769 & Proporción de alertas que son reales. \\
+Recall (Vuln) & 0.3048 & Porcentaje de vulnerabilidades detectadas. \\
+F1-Score & 0.3719 & Balance armónico para la clase minoritaria. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{Ecosistema DevSecOps: Orquestación e Infraestructura}
 
 El pipeline de seguridad implementado en \textbf{GitHub Actions} actúa como el sistema nervioso del proyecto, orquestando múltiples etapas de validación:
