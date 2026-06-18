@@ -10,7 +10,7 @@ clasicos de machine learning y analisis estatico; no depende de LLMs.
 - Entrena modelos de clasificacion para predecir codigo `SAFE` o `VULNERABLE`.
 - Evalua el modelo y guarda metricas en `reports/metrics.json`.
 - Predice riesgo desde metricas JSON o desde archivos de codigo fuente.
-- Escanea directorios completos con codigo C/C++, Java, Python, JavaScript, TypeScript, Go y Rust.
+- Escanea directorios completos con codigo C/C++, Java.
 - Expone una API FastAPI lista para Docker y Render.
 - Automatiza revision de seguridad en Pull Requests con GitHub Actions.
 - Notifica resultados por Telegram cuando los secrets estan configurados.
