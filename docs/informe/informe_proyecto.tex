@@ -6,7 +6,7 @@
 \usepackage[spanish, es-tabla]{babel}
 \usepackage{geometry}
 \usepackage{graphicx}
-\usepackage{xcolor}
+\usepackage[table]{xcolor}
 \usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage{listings}
@@ -108,25 +108,28 @@ Se diseñó un repositorio de datos unificado que ingesta información de fuente
 Durante la exploración, se determinó que solo el **8.1\%** de los fragmentos de código son vulnerables. Esta asimetría es natural en el desarrollo de software (el código seguro es la norma), pero requiere estrategias de entrenamiento específicas como el \textit{cost-sensitive learning} para evitar que el modelo ignore sistemáticamente la clase minoritaria.
 
 \subsection{Fase MODIFY: Extracción de Características Avanzada}
-La transformación de código fuente a vectores numéricos se realizó mediante tres extractores concurrentes:
+La transformación de código fuente a vectores numéricos se realizó mediante tres extractores concurrentes, diseñados para capturar tanto la semántica léxica como la estructura sintáctica:
 
 \begin{enumerate}
-    \item \textbf{HashingVectorizer (Truco del Hashing):} Convierte fragmentos de código en vectores de 262,144 dimensiones ($2^{18}$). A diferencia de un vocabulario estático, el hashing maneja identificadores de variables y funciones desconocidos sin colisiones significativas y con un consumo de RAM constante.
-    \item \textbf{Análisis AST (Abstract Syntax Tree):} Utilizando la librería \texttt{tree-sitter}, el sistema analiza la gramática del código para extraer:
+    \item \textbf{HashingVectorizer (Truco del Hashing):} Convierte fragmentos de código en vectores de alta dimensionalidad ($2^{18}$). A diferencia de un vocabulario estático que crece indefinidamente con cada nuevo nombre de variable, el hashing mapea tokens a un espacio fijo, permitiendo procesar cualquier base de código sin necesidad de pre-entrenar un diccionario gigante.
+    \item \textbf{Análisis Estructural AST (Abstract Syntax Tree):} Mediante la integración de la librería industrial \textbf{tree-sitter}, el sistema descompone el código en su gramática formal. Se implementó un extractor robusto que identifica:
     \begin{itemize}
-        \item Conteo de operaciones con punteros (crítico para desbordamientos en C++).
-        \item Profundidad máxima del árbol (indicador de complejidad lógica).
-        \item Frecuencia de estructuras de control (\texttt{if, for, while}).
+        \item \textbf{Pointer Declarators:} Conteo de nodos \texttt{pointer\_declarator} y \texttt{reference\_declarator}, fundamentales para identificar riesgos de gestión de memoria en C/C++.
+        \item \textbf{Complexidad Estructural:} Profundidad máxima del árbol y conteo de nodos totales, que sirven como proxis de la mantenibilidad y probabilidad de errores ocultos.
+        \item \textbf{Estructuras de Control:} Frecuencia de \texttt{if\_statement}, \texttt{for\_statement} y \texttt{method\_invocation} para modelar el flujo de ejecución.
     \end{itemize}
-    \item \textbf{Extractor de Taint (Fuentes y Sumideros):} Identifica mediante regex patrones de flujo de datos inseguros, como entradas de usuario (\texttt{scanf, argv}) que llegan a funciones peligrosas (\texttt{strcpy, system}).
+    \item \textbf{Extractor de Taint (Sources/Sinks):} Identifica mediante expresiones regulares optimizadas la presencia de funciones de entrada (\textit{Sources}) como \texttt{scanf, argv, getenv} y funciones de destino peligrosas (\textit{Sinks}) como \texttt{strcpy, system, memcpy}. La coexistencia de ambos en un mismo fragmento eleva drásticamente el peso de la predicción de vulnerabilidad.
 \end{enumerate}
 
 \section{Modelado y Evaluación (Fase MODEL/ASSESS)}
 
-\subsection{Justificación Algorítmica}
-Se seleccionó **XGBoost** (Extreme Gradient Boosting) como clasificador principal debido a su robustez frente a datos tabulares y su capacidad de manejar valores nulos e importancia de variables. Se configuró el parámetro \texttt{scale\_pos\_weight} calculado como:
-\[ \text{weight} = \frac{\text{count(safe)}}{\text{count(vulnerable)}} \approx 11.4 \]
-Esto obliga al algoritmo a prestar 11 veces más atención a los errores cometidos sobre la clase vulnerable.
+\subsection{Justificación Algorítmica y Estrategia de Pesos}
+Se seleccionó **XGBoost** (Extreme Gradient Boosting) como clasificador principal por su excepcional desempeño en datos tabulares y su capacidad nativa para manejar el desbalance de clases mediante el parámetro \texttt{scale\_pos\_weight}. 
+
+La estrategia se basó en el \textbf{Cost-Sensitive Learning}: al asignar un peso mayor a la clase minoritaria ($11.4$), el algoritmo penaliza más severamente el falso negativo (dejar pasar una vulnerabilidad) que el falso positivo. Esto es crítico en seguridad, donde el costo de una brecha es infinitamente superior al de una revisión manual adicional.
+
+\subsection{Explicabilidad mediante SHAP}
+Para superar la naturaleza de "caja negra" de los modelos de boosting, se integró un motor de explicabilidad basado en \textbf{SHAP (SHapley Additive exPlanations)}. Esto permite descomponer cada predicción en la contribución individual de cada característica. En el pipeline DevSecOps, esto se traduce en mensajes de retroalimentación útiles para el desarrollador, indicando exactamente qué patrones de código dispararon la alerta de seguridad.
 
 \subsection{Desempeño del Modelo}
 \begin{table}[H]
@@ -164,15 +167,22 @@ CWE-502 & \texttt{ObjectInputStream.readObject} & Migrar a formatos seguros como
 \end{tabular}
 \end{table}
 
-\section{Ecosistema DevSecOps y Notificaciones}
+\section{Ecosistema DevSecOps: Orquestación e Infraestructura}
 
-El pipeline CI/CD actúa como orquestador central, disparando notificaciones ricas en contexto ante fallos:
+El pipeline de seguridad implementado en \textbf{GitHub Actions} actúa como el sistema nervioso del proyecto, orquestando múltiples etapas de validación:
 
 \begin{enumerate}
-    \item \textbf{GitHub Issues:} Se crea automáticamente un issue etiquetado como \texttt{fixing-required} con el desglose de archivos vulnerables, su probabilidad de riesgo y la mitigación específica por CWE.
-    \item \textbf{Bot de Telegram:} Envía alertas en tiempo real al desarrollador indicando la etapa exacta del pipeline que falló (ML Review, Tests o Deployment).
-    \item \textbf{Bloqueo de Merge:} El PR queda bloqueado mediante un \textit{Status Check} fallido, impidiendo que el código vulnerable llegue a la rama \texttt{test} o \texttt{main}.
+    \item \textbf{Status Checks y Reglas de Protección:} El resultado de la inferencia de IA se reporta directamente a la API de GitHub como un chequeo de estado obligatorio. Si el modelo identifica un riesgo alto, el botón de "Merge" se bloquea, forzando una revisión manual.
+    \item \textbf{Gestión Automática de Vulnerabilidades:} Ante una detección positiva, el pipeline:
+    \begin{itemize}
+        \item Crea un \textbf{GitHub Issue} con el label \texttt{fixing-required}, vinculándolo automáticamente al Pull Request original.
+        \item Publica un comentario detallado en el PR con recomendaciones específicas por CWE y los resultados de la explicabilidad del modelo.
+    \end{itemize}
+    \item \textbf{Notificaciones Multi-Canal (Telegram):} Se implementó un bot de Telegram que consume la API de mensajes para notificar instantáneamente al equipo sobre el estado de cada etapa (Inferencia, Pruebas Unitarias y Despliegue en Render).
 \end{enumerate}
+
+\subsection{Contenerización y Despliegue}
+Para asegurar la reproducibilidad del entorno de ejecución, se diseñó un \textbf{Dockerfile} multietapa que empaqueta todas las dependencias (Python, Tree-Sitter, XGBoost). Esto permite que la API de inferencia pueda desplegarse de forma elástica en plataformas como \textbf{Render}, garantizando que el servicio de escaneo esté siempre disponible y aislado de conflictos de dependencias locales.
 
 \section{Conclusiones}
 La solución implementada demuestra un equilibrio entre rigor analítico y operatividad DevSecOps. El uso de la metodología SEMMA permitió pasar de una recolección de datos masiva a un sistema de decisión distribuido que educa al desarrollador en lugar de solo castigar el error. La integración de la ingeniería de características (AST + Hashing) dota al modelo de una visión semántica del código que supera el análisis de texto simple.
