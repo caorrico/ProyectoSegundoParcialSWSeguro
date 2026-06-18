@@ -16,12 +16,13 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Instalar dependencias del sistema para tree-sitter
+# Instalar dependencias del sistema para tree-sitter y libclang
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     git \
     curl \
+    libclang-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar e instalar dependencias Python
@@ -30,12 +31,8 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt && \
     pip install fastapi uvicorn[standard]
 
-# Copiar el proyecto
+# Copiar el proyecto (incluyendo el modelo entrenado previamente en local)
 COPY . .
-
-# Pre-entrenar el modelo con dataset OWASP 2025 (si no existe ya)
-RUN python scripts/generate_owasp_dataset.py && \
-    python -m app.interfaces.cli train --use-owasp
 
 # Exponer puerto
 EXPOSE 8000

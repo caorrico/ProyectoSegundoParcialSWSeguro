@@ -64,10 +64,12 @@ class BaseTrainer(ABC):
             from sklearn.feature_extraction.text import TfidfVectorizer
             from sklearn.pipeline import Pipeline, FeatureUnion
             from app.infrastructure.ml.ast_extractor import ASTFeatureExtractor
+            from app.infrastructure.ml.language_feature import LanguageFeatureExtractor
             model = Pipeline([
                 ("features", FeatureUnion([
-                    ("tfidf", TfidfVectorizer(max_features=1000)),
-                    ("ast", ASTFeatureExtractor())
+                    ("tfidf", TfidfVectorizer(max_features=3000, ngram_range=(1, 2))),
+                    ("ast", ASTFeatureExtractor()),
+                    ("language", LanguageFeatureExtractor())
                 ])),
                 ("clf", base_estimator)
             ])
@@ -136,6 +138,8 @@ class BaseTrainer(ABC):
         if self._model_path is not None:
             self._model_path.parent.mkdir(parents=True, exist_ok=True)
             joblib.dump(model, self._model_path)
+            if is_syntactic and hasattr(model, "named_steps"):
+                joblib.dump(model.named_steps["features"], self._model_path.parent / "vectorizer.joblib")
 
         if self._report_path is not None:
             self._report_path.parent.mkdir(parents=True, exist_ok=True)

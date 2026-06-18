@@ -12,7 +12,7 @@ from app.domain.contracts import Dataset, DatasetRepository
 class ReVealDatasetRepository(DatasetRepository):
     """Loads ReVeal vulnerability dataset."""
 
-    def __init__(self, dataset_path: Path, limit: int = 3000):
+    def __init__(self, dataset_path: Path, limit: int | None = None):
         self._dataset_path = dataset_path
         self._limit = limit
 
@@ -28,7 +28,7 @@ class ReVealDatasetRepository(DatasetRepository):
         with open(self._dataset_path, "r", encoding="utf-8") as f:
             count = 0
             for line in f:
-                if count >= self._limit:
+                if self._limit is not None and count >= self._limit:
                     break
 
                 try:

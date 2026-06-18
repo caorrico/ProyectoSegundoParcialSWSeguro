@@ -4,10 +4,10 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
-from app.shared.settings import settings
-from app.infrastructure.repositories.cvefixes_dataset_repository import CVEFixesDatasetRepository
-from app.infrastructure.ml.random_forest_trainer import RandomForestTrainer
-from app.application.use_cases.train_vulnerability_model import TrainVulnerabilityModelUseCase
+from app.shared.settings import settings  # noqa: E402
+from app.infrastructure.repositories.cvefixes_dataset_repository import CVEFixesDatasetRepository  # noqa: E402
+from app.infrastructure.ml.random_forest_trainer import RandomForestTrainer  # noqa: E402
+from app.application.use_cases.train_vulnerability_model import TrainVulnerabilityModelUseCase  # noqa: E402
 
 def main():
     print("Training model with CVEFixes dataset...")

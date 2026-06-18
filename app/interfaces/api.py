@@ -2,16 +2,13 @@
 FastAPI endpoint para el modelo de minería de datos de vulnerabilidades.
 Se despliega en Render/Railway para exponer las predicciones via HTTP.
 """
-from pathlib import Path
 from typing import Optional
-import json
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.domain.entities import RawCodeModule
-from app.domain.value_objects import RiskLevel
 from app.shared.settings import Settings
 from app.infrastructure.ml.random_forest_predictor import RandomForestPredictor
 from app.application.use_cases.predict_vulnerability import PredictVulnerabilityUseCase

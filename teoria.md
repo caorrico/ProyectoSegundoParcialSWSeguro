@@ -4,7 +4,9 @@ La prevalencia de código vulnerable en un software real es baja; en bases de da
 
 ### Reformulaciones de la Función de Pérdida
 
-Para revertir el sesgo del desequilibrio de clases, es necesario sustituir o complementar el cálculo del gradiente en el optimizador por enfoques sensibles a la frecuencia y a la dificultad de aprendizaje de los datos:
+Para revertir el sesgo del desequilibrio de clases, es necesario sustituir o com
+
+plementar el cálculo del gradiente en el optimizador por enfoques sensibles a la frecuencia y a la dificultad de aprendizaje de los datos:
 
 * **Weighted Cross-Entropy (WCE)** : Modifica la entropía cruzada estándar asignando pesos fijos y diferenciados a cada una de las clases representadas en el lote, penalizando de forma más severa los errores cometidos en el procesamiento de muestras de la clase minoritaria (vulnerable)^^:
 

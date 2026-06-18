@@ -32,6 +32,7 @@ MANIFEST
 
 # Virtual environments
 .venv/
+.venv_wsl/
 venv/
 env/
 ENV/
@@ -91,11 +92,11 @@ models/*.safetensors
 data/codexglue/
 data/d2a/
 data/reveal/
+data/data/
 data/megavul/
 megavul/
-data/raw/*.csv
-data/raw/*.json
-data/raw/*.jsonl
+data/raw/*
+!data/raw/.gitkeep
 data/processed/
 data/vulberta/
 data/finetune/
@@ -105,6 +106,7 @@ data/owasp2025/
 
 # CVEFixes DB (download separately)
 data/cvefixes/
+data/CVEFixes.csv/
 *.db
 *.sqlite3
 *.sqlite3-journal
@@ -211,3 +213,13 @@ debug_*.py
 # ─── Sphinx docs ─────────────────────────────────────────────────────────────
 docs/_build/
 /site
+
+# LaTeX build artifacts
+*.aux
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz

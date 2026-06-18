@@ -1,11 +1,48 @@
+import re
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Union
 
 import joblib
 import pandas as pd
 
 from app.domain.entities import CodeModuleMetrics, RawCodeModule
-from typing import Union
+
+
+def _detect_language_from_code(code: str) -> str:
+    if re.search(r"\b(public\s+class|import\s+java|package\s+[\w.]+;)", code):
+        return "java"
+    if re.search(r"#include\s*<|std::|->", code):
+        return "cpp"
+    if re.search(r"<\?php|\bnamespace\s+[\w\\]+;", code):
+        return "php"
+    if re.search(r"\bdef\s+\w+\(|import\s+\w+", code):
+        return "python"
+    if re.search(r"\bfunction\s+\w+\(|const\s+\w+\s*=", code):
+        return "javascript"
+    if re.search(r"<!doctype html|<html", code, re.IGNORECASE):
+        return "html"
+    return "unknown"
+
+
+def _raw_code_features(code: str) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "raw_code": code,
+                "language": _detect_language_from_code(code),
+                "source": "manual",
+                "code_length": len(code),
+                "line_count": len([line for line in code.splitlines() if line.strip()]),
+            }
+        ]
+    )
+
+
+def _predict_proba_raw_code(model, code: str) -> float:
+    try:
+        return float(model.predict_proba(_raw_code_features(code))[0][1])
+    except Exception:
+        return float(model.predict_proba(pd.Series([code]))[0][1])
 
 class RandomForestPredictor:
     def __init__(self, model_path: Path) -> None:
@@ -20,7 +57,10 @@ class RandomForestPredictor:
         model = joblib.load(self._model_path)
         
         if isinstance(metrics, RawCodeModule):
-            features = pd.Series([metrics.raw_code])
+            probability = _predict_proba_raw_code(model, metrics.raw_code)
+            is_vulnerable = probability >= 0.50
+            return is_vulnerable, probability
+
         else:
             features = pd.DataFrame([metrics.to_feature_dict()])[list(CodeModuleMetrics.FEATURE_NAMES)]
             
@@ -39,10 +79,14 @@ class RandomForestPredictor:
             is_syntactic = isinstance(metrics, RawCodeModule)
             
             if is_syntactic:
-                features_raw = pd.Series([metrics.raw_code])
+                features_raw = _raw_code_features(metrics.raw_code)
                 feature_union = model.named_steps["features"]
                 rf = model.named_steps["clf"]
-                features_transformed = feature_union.transform(features_raw)
+                try:
+                    features_transformed = feature_union.transform(features_raw)
+                except Exception:
+                    features_raw = pd.Series([metrics.raw_code])
+                    features_transformed = feature_union.transform(features_raw)
                 feature_names = feature_union.get_feature_names_out()
                 if hasattr(features_transformed, "toarray"):
                     features_transformed = features_transformed.toarray()
@@ -83,7 +127,6 @@ class RandomForestPredictor:
     def generate_explanation(self, metrics: Union[CodeModuleMetrics, RawCodeModule], report_path: Path) -> None:
         import shap
         import numpy as np
-        from sklearn.pipeline import Pipeline
 
         if not self._model_path.exists():
             raise FileNotFoundError(f"Model not found at {self._model_path}.")
@@ -92,10 +135,14 @@ class RandomForestPredictor:
         is_syntactic = isinstance(metrics, RawCodeModule)
         
         if is_syntactic:
-            features_raw = pd.Series([metrics.raw_code])
+            features_raw = _raw_code_features(metrics.raw_code)
             feature_union = model.named_steps["features"]
             rf = model.named_steps["clf"]
-            features_transformed = feature_union.transform(features_raw)
+            try:
+                features_transformed = feature_union.transform(features_raw)
+            except Exception:
+                features_raw = pd.Series([metrics.raw_code])
+                features_transformed = feature_union.transform(features_raw)
             feature_names = feature_union.get_feature_names_out()
             if hasattr(features_transformed, "toarray"):
                 features_transformed = features_transformed.toarray()

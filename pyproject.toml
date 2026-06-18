@@ -5,3 +5,11 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+extend-exclude = [
+    "entrenamiento_avanzado.ipynb",
+    "notebooks/*.ipynb",
+    "scripts/analyze_combined_dataset.py",
+    "scripts/inspect_tree_sitter.py",
+    "scripts/test_*.py",
+    "scripts/train_test_1_percent.py",
+]

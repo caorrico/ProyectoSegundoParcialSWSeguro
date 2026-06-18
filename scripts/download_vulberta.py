@@ -8,7 +8,6 @@ Since direct download from OneDrive requires browser interaction,
 this script provides instructions and then processes the downloaded zip.
 """
 import json
-import os
 import sys
 import zipfile
 from pathlib import Path

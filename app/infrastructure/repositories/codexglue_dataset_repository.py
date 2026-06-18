@@ -3,7 +3,7 @@ from pathlib import Path
 from app.domain.contracts import Dataset, DatasetRepository
 
 class CodeXGLUEDatasetRepository(DatasetRepository):
-    def __init__(self, dataset_path: Path, limit: int = 5000):
+    def __init__(self, dataset_path: Path, limit: int | None = None):
         self._dataset_path = dataset_path
         self._limit = limit
 
@@ -16,7 +16,7 @@ class CodeXGLUEDatasetRepository(DatasetRepository):
         with open(self._dataset_path, "r", encoding="utf-8") as f:
             count = 0
             for line in f:
-                if count >= self._limit:
+                if self._limit is not None and count >= self._limit:
                     break
                 
                 try:
@@ -25,10 +25,18 @@ class CodeXGLUEDatasetRepository(DatasetRepository):
                     is_vulnerable = item.get("target", 0)
                     
                     if code:
-                        dataset.append({
+                        sample = {
                             "raw_code": code,
                             "is_vulnerable": int(is_vulnerable)
-                        })
+                        }
+                        # Add extra fields if available
+                        if "id" in item:
+                            sample["id"] = item["id"]
+                        if "project" in item:
+                            sample["project"] = item["project"]
+                        if "commit_id" in item:
+                            sample["commit_id"] = item["commit_id"]
+                        dataset.append(sample)
                         count += 1
                 except json.JSONDecodeError:
                     continue

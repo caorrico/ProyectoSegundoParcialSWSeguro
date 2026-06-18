@@ -1,125 +1,111 @@
 #!/usr/bin/env python3
-"""
-Script de configuración del bot de Telegram.
-Ejecutar UNA VEZ para obtener el CHAT_ID y verificar la conexión.
+"""Configure the Telegram bot used by the CI/CD pipeline.
 
-Uso:
+Usage:
     python scripts/setup_telegram.py --token YOUR_BOT_TOKEN
-    
-Luego copiar TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID a GitHub Secrets.
+    python scripts/setup_telegram.py --token YOUR_BOT_TOKEN --chat-id YOUR_CHAT_ID
+
+Then save TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID as GitHub Actions secrets.
 """
+
+from __future__ import annotations
+
 import argparse
-import urllib.request
 import json
 import sys
+import urllib.request
 
 
 def get_updates(token: str) -> dict:
     url = f"https://api.telegram.org/bot{token}/getUpdates"
     try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
-            return json.loads(resp.read())
-    except Exception as e:
-        print(f"Error conectando a Telegram API: {e}")
+        with urllib.request.urlopen(url, timeout=10) as response:
+            return json.loads(response.read())
+    except Exception as error:
+        print(f"Error connecting to Telegram API: {error}", file=sys.stderr)
         sys.exit(1)
 
 
 def get_bot_info(token: str) -> dict:
     url = f"https://api.telegram.org/bot{token}/getMe"
-    with urllib.request.urlopen(url, timeout=10) as resp:
-        return json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(url, timeout=10) as response:
+            return json.loads(response.read())
+    except Exception as error:
+        print(f"Error verifying Telegram token: {error}", file=sys.stderr)
+        sys.exit(1)
 
 
 def send_test_message(token: str, chat_id: str) -> bool:
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    data = json.dumps({
-        "chat_id": chat_id,
-        "parse_mode": "HTML",
-        "text": (
-            "🤖 <b>SecureDataMining Bot configurado!</b>\n\n"
-            "✅ La conexión con el pipeline CI/CD de DevSecOps está activa.\n"
-            "Recibirás notificaciones en cada etapa del pipeline:\n\n"
-            "🔍 Inicio de revisión de seguridad IA\n"
-            "✅/❌ Resultado del modelo ML\n"
-            "🔀 Merge a rama test\n"
-            "🧪 Resultado de pruebas\n"
-            "🚀 Deploy en producción\n"
-            "🚨 Rechazo por vulnerabilidad\n\n"
-            "<i>Universidad de las Fuerzas Armadas ESPE — Desarrollo de Software Seguro</i>"
-        )
-    }).encode()
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    data = json.dumps(
+        {
+            "chat_id": chat_id,
+            "parse_mode": "HTML",
+            "text": (
+                "<b>SecureDataMining Bot configurado</b>\n\n"
+                "La conexion con el pipeline CI/CD de DevSecOps esta activa.\n"
+                "Recibiras notificaciones de analisis, bloqueo por vulnerabilidad, "
+                "pruebas, merge y despliegue."
+            ),
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            result = json.loads(resp.read())
-            return result.get("ok", False)
-    except Exception as e:
-        print(f"Error enviando mensaje: {e}")
+        with urllib.request.urlopen(request, timeout=10) as response:
+            result = json.loads(response.read())
+            return bool(result.get("ok"))
+    except Exception as error:
+        print(f"Error sending Telegram test message: {error}", file=sys.stderr)
         return False
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Setup del bot de Telegram para el pipeline CI/CD")
-    parser.add_argument("--token", required=True, help="Token del bot de Telegram (@BotFather)")
-    parser.add_argument("--chat-id", help="Chat ID (si ya lo conoces)")
+def find_chat_id(token: str) -> str | None:
+    updates = get_updates(token)
+    if not updates.get("ok") or not updates.get("result"):
+        return None
+    message = updates["result"][-1].get("message") or updates["result"][-1].get("channel_post")
+    if not message:
+        return None
+    return str(message["chat"]["id"])
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Setup Telegram bot for the SecureDataMining pipeline")
+    parser.add_argument("--token", required=True, help="Telegram bot token from BotFather")
+    parser.add_argument("--chat-id", help="Target chat ID, if you already know it")
     args = parser.parse_args()
 
-    token = args.token
-    print(f"\n{'='*60}")
-    print("SecureDataMining — Configuración de Bot Telegram")
-    print(f"{'='*60}\n")
-
-    # Verificar token
-    print("1. Verificando token del bot...")
-    bot_info = get_bot_info(token)
+    print("SecureDataMining - Telegram setup")
+    print("1. Verifying bot token...")
+    bot_info = get_bot_info(args.token)
     if not bot_info.get("ok"):
-        print(f"❌ Token inválido: {bot_info}")
+        print("Invalid Telegram token.", file=sys.stderr)
         sys.exit(1)
 
     bot = bot_info["result"]
-    print(f"   ✅ Bot: @{bot['username']} ({bot['first_name']})")
+    print(f"   Bot verified: @{bot['username']} ({bot['first_name']})")
 
     chat_id = args.chat_id
-
     if not chat_id:
-        print("\n2. Buscando chat ID...")
-        print("   INSTRUCCIÓN: Envía cualquier mensaje al bot @{} en Telegram ahora.".format(bot['username']))
-        print("   Luego presiona ENTER aquí...")
+        print("\n2. Looking for chat ID...")
+        print(f"   Send any message to @{bot['username']} in Telegram, then press ENTER here.")
         input()
-
-        updates = get_updates(token)
-        if not updates.get("ok") or not updates.get("result"):
-            print("   ❌ No se encontraron mensajes. Asegúrate de haber enviado un mensaje al bot.")
+        chat_id = find_chat_id(args.token)
+        if not chat_id:
+            print("No chat messages were found. Send a message to the bot and run this again.", file=sys.stderr)
             sys.exit(1)
+        print(f"   Chat ID found: {chat_id}")
 
-        chat_id = str(updates["result"][-1]["message"]["chat"]["id"])
-        sender = updates["result"][-1]["message"]["from"].get("username", "unknown")
-        print(f"   ✅ Chat ID encontrado: {chat_id} (de @{sender})")
-
-    # Enviar mensaje de prueba
-    print(f"\n3. Enviando mensaje de prueba al chat {chat_id}...")
-    if send_test_message(token, chat_id):
-        print("   ✅ Mensaje de prueba enviado exitosamente!")
-    else:
-        print("   ❌ Error enviando mensaje de prueba")
+    print("\n3. Sending test message...")
+    if not send_test_message(args.token, chat_id):
+        print("Telegram test message failed.", file=sys.stderr)
         sys.exit(1)
 
-    # Mostrar instrucciones de GitHub Secrets
-    print(f"\n{'='*60}")
-    print("CONFIGURACIÓN COMPLETADA")
-    print(f"{'='*60}")
-    print("\nCopia estos valores en GitHub Secrets:")
-    print(f"  Repositorio → Settings → Secrets → Actions → New secret\n")
-    print(f"  Nombre: TELEGRAM_BOT_TOKEN")
-    print(f"  Valor:  {token}\n")
-    print(f"  Nombre: TELEGRAM_CHAT_ID")
-    print(f"  Valor:  {chat_id}\n")
-    print("Opcional (para deploy en Render):")
-    print("  Nombre: RENDER_DEPLOY_HOOK_URL")
-    print("  Valor:  (URL del deploy hook de Render.com)")
-    print("\n  Nombre: PRODUCTION_URL")
-    print("  Valor:  https://tu-app.onrender.com")
-    print(f"\n{'='*60}\n")
+    print("   Test message sent.")
+    print("\nConfiguration completed. Save these GitHub Actions secrets:")
+    print("  TELEGRAM_BOT_TOKEN = <your bot token>")
+    print(f"  TELEGRAM_CHAT_ID = {chat_id}")
 
 
 if __name__ == "__main__":

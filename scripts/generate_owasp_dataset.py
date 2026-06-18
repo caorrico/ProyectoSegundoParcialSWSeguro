@@ -15,7 +15,6 @@ Generates realistic C/C++ code samples for each OWASP Top 10:2025 category:
 """
 import json
 import random
-import itertools
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -36,13 +35,13 @@ def _func():
 def a01_vulnerable():
     samples = []
     # Direct object reference without authorization check
-    samples.append(f'''
-void getUserData(int userId) {{
+    samples.append('''
+void getUserData(int userId) {
     char query[256];
     sprintf(query, "SELECT * FROM users WHERE id = %d", userId);
     sqlite3_exec(db, query, callback, 0, NULL);
     // No authorization check - any user can access any other user's data
-}}
+}
 ''')
     # Path traversal
     samples.append(f'''
@@ -59,35 +58,35 @@ void downloadFile(const char* filename) {{
 }}
 ''')
     # Missing function-level access control
-    samples.append(f'''
-void adminDeleteUser(int targetUserId) {{
+    samples.append('''
+void adminDeleteUser(int targetUserId) {
     // VULNERABLE: No role check before performing admin action
     char query[256];
     sprintf(query, "DELETE FROM users WHERE id = %d", targetUserId);
     sqlite3_exec(db, query, NULL, NULL, NULL);
     printf("User %d deleted.\\n", targetUserId);
-}}
+}
 ''')
     # CORS misconfiguration
-    samples.append(f'''
-void setCORSHeaders(struct mg_connection* conn) {{
+    samples.append('''
+void setCORSHeaders(struct mg_connection* conn) {
     // VULNERABLE: Allows any origin to access the API
     mg_printf(conn, "Access-Control-Allow-Origin: *\\r\\n");
     mg_printf(conn, "Access-Control-Allow-Methods: GET, POST, DELETE\\r\\n");
     mg_printf(conn, "Access-Control-Allow-Credentials: true\\r\\n");
-}}
+}
 ''')
     return samples
 
 def a01_safe():
     samples = []
-    samples.append(f'''
-void getUserData(int requestingUserId, int targetUserId) {{
+    samples.append('''
+void getUserData(int requestingUserId, int targetUserId) {
     // SAFE: Check authorization before accessing data
-    if (requestingUserId != targetUserId && !isAdmin(requestingUserId)) {{
+    if (requestingUserId != targetUserId && !isAdmin(requestingUserId)) {
         printf("Access denied.\\n");
         return;
-    }}
+    }
     char query[256];
     snprintf(query, sizeof(query), "SELECT * FROM users WHERE id = ?");
     sqlite3_stmt* stmt;
@@ -95,24 +94,24 @@ void getUserData(int requestingUserId, int targetUserId) {{
     sqlite3_bind_int(stmt, 1, targetUserId);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-}}
+}
 ''')
-    samples.append(f'''
-void downloadFile(const char* filename) {{
+    samples.append('''
+void downloadFile(const char* filename) {
     // SAFE: Validate filename to prevent path traversal
-    if (strstr(filename, "..") != NULL || strchr(filename, '/') != NULL) {{
+    if (strstr(filename, "..") != NULL || strchr(filename, '/') != NULL) {
         printf("Invalid filename.\\n");
         return;
-    }}
+    }
     char filepath[512];
     snprintf(filepath, sizeof(filepath), "/uploads/%s", filename);
     FILE* f = fopen(filepath, "rb");
-    if (f) {{
+    if (f) {
         char buffer[4096];
         size_t bytesRead = fread(buffer, 1, sizeof(buffer), f);
         fclose(f);
-    }}
-}}
+    }
+}
 ''')
     return samples
 
@@ -121,8 +120,8 @@ void downloadFile(const char* filename) {{
 # ---------------------------------------------------------------------------
 def a02_vulnerable():
     samples = []
-    samples.append(f'''
-void startServer() {{
+    samples.append('''
+void startServer() {
     // VULNERABLE: Debug mode enabled in production
     #define DEBUG_MODE 1
     #define VERBOSE_ERRORS 1
@@ -130,49 +129,49 @@ void startServer() {{
     printf("Starting server with debug mode ON\\n");
     // Stack traces exposed to users
     signal(SIGSEGV, printStackTrace);
-}}
+}
 ''')
-    samples.append(f'''
-void configureDatabase() {{
+    samples.append('''
+void configureDatabase() {
     // VULNERABLE: Default credentials
     const char* db_user = "admin";
     const char* db_pass = "admin123";
     const char* db_host = "0.0.0.0";
     mysql_real_connect(conn, db_host, db_user, db_pass, "mydb", 3306, NULL, 0);
-}}
+}
 ''')
-    samples.append(f'''
-void setupHTTPHeaders(struct mg_connection* conn) {{
+    samples.append('''
+void setupHTTPHeaders(struct mg_connection* conn) {
     // VULNERABLE: Missing security headers
     // No X-Frame-Options, no Content-Security-Policy, no X-Content-Type-Options
     mg_printf(conn, "HTTP/1.1 200 OK\\r\\n");
     mg_printf(conn, "Content-Type: text/html\\r\\n\\r\\n");
-}}
+}
 ''')
     return samples
 
 def a02_safe():
     samples = []
-    samples.append(f'''
-void startServer() {{
+    samples.append('''
+void startServer() {
     // SAFE: Production configuration
     #define DEBUG_MODE 0
     const char* env = getenv("APP_ENV");
-    if (env == NULL || strcmp(env, "production") != 0) {{
+    if (env == NULL || strcmp(env, "production") != 0) {
         fprintf(stderr, "Warning: APP_ENV not set to production\\n");
-    }}
+    }
     // Generic error handler - no stack traces
     signal(SIGSEGV, genericErrorHandler);
-}}
+}
 ''')
-    samples.append(f'''
-void setupHTTPHeaders(struct mg_connection* conn) {{
+    samples.append('''
+void setupHTTPHeaders(struct mg_connection* conn) {
     // SAFE: All security headers set
     mg_printf(conn, "X-Frame-Options: DENY\\r\\n");
     mg_printf(conn, "X-Content-Type-Options: nosniff\\r\\n");
     mg_printf(conn, "Content-Security-Policy: default-src 'self'\\r\\n");
     mg_printf(conn, "Strict-Transport-Security: max-age=31536000\\r\\n");
-}}
+}
 ''')
     return samples
 
@@ -181,38 +180,38 @@ void setupHTTPHeaders(struct mg_connection* conn) {{
 # ---------------------------------------------------------------------------
 def a03_vulnerable():
     samples = []
-    samples.append(f'''
-void downloadDependency(const char* url) {{
+    samples.append('''
+void downloadDependency(const char* url) {
     char cmd[512];
     // VULNERABLE: Downloading dependency over HTTP without integrity check
     sprintf(cmd, "curl -o /tmp/lib.so %s", url);
     system(cmd);
     // Loading without signature verification
     dlopen("/tmp/lib.so", RTLD_NOW);
-}}
+}
 ''')
-    samples.append(f'''
-void runBuildScript() {{
+    samples.append('''
+void runBuildScript() {
     // VULNERABLE: Executing unverified build script from remote source
     system("curl -s https://example.com/install.sh | bash");
-}}
+}
 ''')
-    samples.append(f'''
-void loadPlugin(const char* pluginPath) {{
+    samples.append('''
+void loadPlugin(const char* pluginPath) {
     // VULNERABLE: Loading arbitrary shared library without validation
     void* handle = dlopen(pluginPath, RTLD_LAZY);
-    if (handle) {{
+    if (handle) {
         void (*init)() = dlsym(handle, "plugin_init");
         if (init) init();
-    }}
-}}
+    }
+}
 ''')
     return samples
 
 def a03_safe():
     samples = []
-    samples.append(f'''
-void downloadDependency(const char* url, const char* expectedHash) {{
+    samples.append('''
+void downloadDependency(const char* url, const char* expectedHash) {
     // SAFE: Download over HTTPS and verify SHA-256 hash
     char cmd[512];
     snprintf(cmd, sizeof(cmd), "curl -o /tmp/lib.so %s", url);
@@ -220,13 +219,13 @@ void downloadDependency(const char* url, const char* expectedHash) {{
     
     char actualHash[65];
     computeSHA256("/tmp/lib.so", actualHash);
-    if (strcmp(actualHash, expectedHash) != 0) {{
+    if (strcmp(actualHash, expectedHash) != 0) {
         fprintf(stderr, "Integrity check failed!\\n");
         remove("/tmp/lib.so");
         return;
-    }}
+    }
     dlopen("/tmp/lib.so", RTLD_NOW);
-}}
+}
 ''')
     return samples
 
@@ -235,48 +234,48 @@ void downloadDependency(const char* url, const char* expectedHash) {{
 # ---------------------------------------------------------------------------
 def a04_vulnerable():
     samples = []
-    samples.append(f'''
-void encryptData(const char* plaintext, char* output) {{
+    samples.append('''
+void encryptData(const char* plaintext, char* output) {
     // VULNERABLE: Using deprecated DES algorithm with ECB mode
-    DES_cblock key = {{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}};
+    DES_cblock key = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
     DES_key_schedule schedule;
     DES_set_key_unchecked(&key, &schedule);
     DES_ecb_encrypt((DES_cblock*)plaintext, (DES_cblock*)output, &schedule, DES_ENCRYPT);
-}}
+}
 ''')
-    samples.append(f'''
-void hashPassword(const char* password, char* output) {{
+    samples.append('''
+void hashPassword(const char* password, char* output) {
     // VULNERABLE: Using MD5 for password hashing (broken, fast to brute-force)
     MD5_CTX ctx;
     MD5_Init(&ctx);
     MD5_Update(&ctx, password, strlen(password));
     MD5_Final((unsigned char*)output, &ctx);
-}}
+}
 ''')
-    samples.append(f'''
-void generateToken(char* token) {{
+    samples.append('''
+void generateToken(char* token) {
     // VULNERABLE: Using predictable random number generator
     srand(time(NULL));
-    for (int i = 0; i < 32; i++) {{
+    for (int i = 0; i < 32; i++) {
         token[i] = 'A' + (rand() % 26);
-    }}
+    }
     token[32] = '\\0';
-}}
+}
 ''')
-    samples.append(f'''
-void storeCredentials(const char* username, const char* password) {{
+    samples.append('''
+void storeCredentials(const char* username, const char* password) {
     // VULNERABLE: Storing password in plaintext
     FILE* f = fopen("credentials.txt", "a");
     fprintf(f, "%s:%s\\n", username, password);
     fclose(f);
-}}
+}
 ''')
     return samples
 
 def a04_safe():
     samples = []
-    samples.append(f'''
-void encryptData(const unsigned char* plaintext, int len, unsigned char* output) {{
+    samples.append('''
+void encryptData(const unsigned char* plaintext, int len, unsigned char* output) {
     // SAFE: Using AES-256-GCM (authenticated encryption)
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
     unsigned char key[32], iv[12], tag[16];
@@ -288,14 +287,14 @@ void encryptData(const unsigned char* plaintext, int len, unsigned char* output)
     EVP_EncryptFinal_ex(ctx, output + outlen, &outlen);
     EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, 16, tag);
     EVP_CIPHER_CTX_free(ctx);
-}}
+}
 ''')
-    samples.append(f'''
-void hashPassword(const char* password, unsigned char* hash, unsigned char* salt) {{
+    samples.append('''
+void hashPassword(const char* password, unsigned char* hash, unsigned char* salt) {
     // SAFE: Using Argon2id for password hashing
     RAND_bytes(salt, 16);
     argon2id_hash_raw(2, (1 << 16), 1, password, strlen(password), salt, 16, hash, 32);
-}}
+}
 ''')
     return samples
 
@@ -305,54 +304,54 @@ void hashPassword(const char* password, unsigned char* hash, unsigned char* salt
 def a05_vulnerable():
     samples = []
     # SQL Injection
-    samples.append(f'''
-void login(const char* username, const char* password) {{
+    samples.append('''
+void login(const char* username, const char* password) {
     char query[512];
     // VULNERABLE: SQL Injection via string concatenation
     sprintf(query, "SELECT * FROM users WHERE username='%s' AND password='%s'", username, password);
     sqlite3_exec(db, query, callback, 0, NULL);
-}}
+}
 ''')
     # Command Injection
-    samples.append(f'''
-void pingHost(const char* host) {{
+    samples.append('''
+void pingHost(const char* host) {
     char cmd[256];
     // VULNERABLE: OS Command Injection
     sprintf(cmd, "ping -c 4 %s", host);
     system(cmd);
-}}
+}
 ''')
     # XSS (reflected in a C web server)
-    samples.append(f'''
-void handleSearch(struct mg_connection* conn, const char* searchTerm) {{
+    samples.append('''
+void handleSearch(struct mg_connection* conn, const char* searchTerm) {
     char response[1024];
     // VULNERABLE: Reflected XSS - user input embedded directly in HTML
     sprintf(response, "<html><body><h1>Results for: %s</h1></body></html>", searchTerm);
     mg_printf(conn, "HTTP/1.1 200 OK\\r\\nContent-Type: text/html\\r\\n\\r\\n%s", response);
-}}
+}
 ''')
     # LDAP Injection
-    samples.append(f'''
-void searchUser(const char* username) {{
+    samples.append('''
+void searchUser(const char* username) {
     char filter[256];
     // VULNERABLE: LDAP Injection
     sprintf(filter, "(uid=%s)", username);
     ldap_search_s(ld, "dc=example,dc=com", LDAP_SCOPE_SUBTREE, filter, NULL, 0, &result);
-}}
+}
 ''')
     # Format String
-    samples.append(f'''
-void logUserInput(const char* userInput) {{
+    samples.append('''
+void logUserInput(const char* userInput) {
     // VULNERABLE: Format String attack
     printf(userInput);
-}}
+}
 ''')
     return samples
 
 def a05_safe():
     samples = []
-    samples.append(f'''
-void login(const char* username, const char* password) {{
+    samples.append('''
+void login(const char* username, const char* password) {
     // SAFE: Parameterized query prevents SQL Injection
     const char* query = "SELECT * FROM users WHERE username=? AND password=?";
     sqlite3_stmt* stmt;
@@ -361,13 +360,13 @@ void login(const char* username, const char* password) {{
     sqlite3_bind_text(stmt, 2, password, -1, SQLITE_STATIC);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-}}
+}
 ''')
-    samples.append(f'''
-void logUserInput(const char* userInput) {{
+    samples.append('''
+void logUserInput(const char* userInput) {
     // SAFE: Using format specifier prevents format string attacks
     printf("%s", userInput);
-}}
+}
 ''')
     return samples
 
@@ -376,36 +375,36 @@ void logUserInput(const char* userInput) {{
 # ---------------------------------------------------------------------------
 def a06_vulnerable():
     samples = []
-    samples.append(f'''
-void resetPassword(const char* email) {{
+    samples.append('''
+void resetPassword(const char* email) {
     // VULNERABLE: Predictable reset token (4-digit code)
     int resetCode = rand() % 10000;
     char msg[256];
     sprintf(msg, "Your reset code is: %04d", resetCode);
     sendEmail(email, msg);
     // No rate limiting on reset attempts
-}}
+}
 ''')
-    samples.append(f'''
-bool verifyOTP(int userCode, int expectedCode) {{
+    samples.append('''
+bool verifyOTP(int userCode, int expectedCode) {
     // VULNERABLE: No rate limiting, no lockout, no expiration
     return userCode == expectedCode;
-}}
+}
 ''')
-    samples.append(f'''
-void processPayment(int userId, double amount) {{
+    samples.append('''
+void processPayment(int userId, double amount) {
     // VULNERABLE: No server-side validation of price
     // Client sends the price, server trusts it blindly
     deductBalance(userId, amount);
     completeOrder(userId);
-}}
+}
 ''')
     return samples
 
 def a06_safe():
     samples = []
-    samples.append(f'''
-void resetPassword(const char* email) {{
+    samples.append('''
+void resetPassword(const char* email) {
     // SAFE: Cryptographically random token + expiration + rate limiting
     unsigned char token[32];
     RAND_bytes(token, sizeof(token));
@@ -416,12 +415,12 @@ void resetPassword(const char* email) {{
     storeResetToken(email, hexToken, time(NULL) + 900);
     
     // Rate limit: max 3 resets per hour
-    if (getResetCount(email, 3600) >= 3) {{
+    if (getResetCount(email, 3600) >= 3) {
         printf("Too many reset requests.\\n");
         return;
-    }}
+    }
     sendEmail(email, hexToken);
-}}
+}
 ''')
     return samples
 
@@ -430,41 +429,41 @@ void resetPassword(const char* email) {{
 # ---------------------------------------------------------------------------
 def a07_vulnerable():
     samples = []
-    samples.append(f'''
-bool authenticate(const char* username, const char* password) {{
+    samples.append('''
+bool authenticate(const char* username, const char* password) {
     // VULNERABLE: Hardcoded credentials
-    if (strcmp(username, "admin") == 0 && strcmp(password, "P@ssw0rd") == 0) {{
+    if (strcmp(username, "admin") == 0 && strcmp(password, "P@ssw0rd") == 0) {
         return true;
-    }}
+    }
     return false;
-}}
+}
 ''')
-    samples.append(f'''
-void createSession(int userId, char* sessionId) {{
+    samples.append('''
+void createSession(int userId, char* sessionId) {
     // VULNERABLE: Predictable session ID
     sprintf(sessionId, "session_%d_%ld", userId, time(NULL));
-}}
+}
 ''')
-    samples.append(f'''
-bool loginAttempt(const char* user, const char* pass) {{
+    samples.append('''
+bool loginAttempt(const char* user, const char* pass) {
     // VULNERABLE: No brute force protection, no account lockout
     return checkCredentials(user, pass);
-}}
+}
 ''')
-    samples.append(f'''
-void setSessionCookie(struct mg_connection* conn, const char* sessionId) {{
+    samples.append('''
+void setSessionCookie(struct mg_connection* conn, const char* sessionId) {
     // VULNERABLE: Cookie without Secure, HttpOnly, SameSite flags
     char cookie[256];
     sprintf(cookie, "Set-Cookie: sid=%s; Path=/", sessionId);
     mg_printf(conn, "%s\\r\\n", cookie);
-}}
+}
 ''')
     return samples
 
 def a07_safe():
     samples = []
-    samples.append(f'''
-bool authenticate(const char* username, const char* password) {{
+    samples.append('''
+bool authenticate(const char* username, const char* password) {
     // SAFE: Hash comparison with constant-time comparison
     unsigned char storedHash[32], salt[16];
     if (!getUserHashAndSalt(username, storedHash, salt)) return false;
@@ -472,15 +471,15 @@ bool authenticate(const char* username, const char* password) {{
     unsigned char computedHash[32];
     argon2id_hash_raw(2, (1<<16), 1, password, strlen(password), salt, 16, computedHash, 32);
     return CRYPTO_memcmp(storedHash, computedHash, 32) == 0;
-}}
+}
 ''')
-    samples.append(f'''
-void createSession(int userId, char* sessionId) {{
+    samples.append('''
+void createSession(int userId, char* sessionId) {
     // SAFE: Cryptographically random session ID
     unsigned char random[32];
     RAND_bytes(random, sizeof(random));
     for (int i = 0; i < 32; i++) sprintf(sessionId + i*2, "%02x", random[i]);
-}}
+}
 ''')
     return samples
 
@@ -489,49 +488,49 @@ void createSession(int userId, char* sessionId) {{
 # ---------------------------------------------------------------------------
 def a08_vulnerable():
     samples = []
-    samples.append(f'''
-void processUpdate(const char* updateUrl) {{
+    samples.append('''
+void processUpdate(const char* updateUrl) {
     char cmd[512];
     // VULNERABLE: Auto-update without signature verification
     sprintf(cmd, "wget -q %s -O /tmp/update.bin && chmod +x /tmp/update.bin && /tmp/update.bin", updateUrl);
     system(cmd);
-}}
+}
 ''')
-    samples.append(f'''
-void* deserializeObject(const char* data, int len) {{
+    samples.append('''
+void* deserializeObject(const char* data, int len) {
     // VULNERABLE: Insecure deserialization - no type checking or validation
     void* obj = malloc(len);
     memcpy(obj, data, len);
     return obj;
-}}
+}
 ''')
-    samples.append(f'''
-void loadConfig(const char* configPath) {{
+    samples.append('''
+void loadConfig(const char* configPath) {
     // VULNERABLE: Loading config from user-writable directory without integrity check
     FILE* f = fopen(configPath, "r");
     char line[256];
-    while (fgets(line, sizeof(line), f)) {{
+    while (fgets(line, sizeof(line), f)) {
         parseConfigLine(line);
-    }}
+    }
     fclose(f);
-}}
+}
 ''')
     return samples
 
 def a08_safe():
     samples = []
-    samples.append(f'''
-void processUpdate(const char* updatePath, const char* signaturePath) {{
+    samples.append('''
+void processUpdate(const char* updatePath, const char* signaturePath) {
     // SAFE: Verify digital signature before applying update
     EVP_PKEY* pubkey = loadPublicKey("update_signing_key.pem");
-    if (!verifySignature(updatePath, signaturePath, pubkey)) {{
+    if (!verifySignature(updatePath, signaturePath, pubkey)) {
         fprintf(stderr, "Update signature verification failed!\\n");
         EVP_PKEY_free(pubkey);
         return;
-    }}
+    }
     EVP_PKEY_free(pubkey);
     applyUpdate(updatePath);
-}}
+}
 ''')
     return samples
 
@@ -540,51 +539,51 @@ void processUpdate(const char* updatePath, const char* signaturePath) {{
 # ---------------------------------------------------------------------------
 def a09_vulnerable():
     samples = []
-    samples.append(f'''
-void handleLogin(const char* username, const char* password) {{
-    if (!authenticate(username, password)) {{
+    samples.append('''
+void handleLogin(const char* username, const char* password) {
+    if (!authenticate(username, password)) {
         // VULNERABLE: No logging of failed login attempt
         printf("Login failed.\\n");
         return;
-    }}
+    }
     printf("Login successful.\\n");
-}}
+}
 ''')
-    samples.append(f'''
-void processTransaction(int userId, double amount) {{
+    samples.append('''
+void processTransaction(int userId, double amount) {
     // VULNERABLE: Financial transaction with no audit trail
     deductBalance(userId, amount);
     // No log of who did what, when, or from where
-}}
+}
 ''')
-    samples.append(f'''
-void logSensitiveData(const char* username, const char* password) {{
+    samples.append('''
+void logSensitiveData(const char* username, const char* password) {
     // VULNERABLE: Logging passwords in plaintext
     printf("[LOGIN] user=%s password=%s\\n", username, password);
     FILE* f = fopen("app.log", "a");
     fprintf(f, "[LOGIN] user=%s password=%s\\n", username, password);
     fclose(f);
-}}
+}
 ''')
     return samples
 
 def a09_safe():
     samples = []
-    samples.append(f'''
-void handleLogin(const char* username, const char* password, const char* ipAddr) {{
-    if (!authenticate(username, password)) {{
+    samples.append('''
+void handleLogin(const char* username, const char* password, const char* ipAddr) {
+    if (!authenticate(username, password)) {
         // SAFE: Log failed attempts with context (without the password)
         logSecurityEvent("LOGIN_FAILED", username, ipAddr);
         incrementFailedAttempts(username);
-        if (getFailedAttempts(username) >= 5) {{
+        if (getFailedAttempts(username) >= 5) {
             lockAccount(username);
             alertSecurityTeam("Account locked due to brute force", username);
-        }}
+        }
         return;
-    }}
+    }
     resetFailedAttempts(username);
     logSecurityEvent("LOGIN_SUCCESS", username, ipAddr);
-}}
+}
 ''')
     return samples
 
@@ -593,75 +592,75 @@ void handleLogin(const char* username, const char* password, const char* ipAddr)
 # ---------------------------------------------------------------------------
 def a10_vulnerable():
     samples = []
-    samples.append(f'''
-void readFile(const char* filename) {{
+    samples.append('''
+void readFile(const char* filename) {
     FILE* f = fopen(filename, "r");
     // VULNERABLE: No NULL check after fopen
     char buffer[1024];
     fread(buffer, 1, 1024, f);
     fclose(f);
-}}
+}
 ''')
-    samples.append(f'''
-void processRequest(const char* data) {{
+    samples.append('''
+void processRequest(const char* data) {
     int* ptr = (int*)malloc(sizeof(int) * 1000);
     // VULNERABLE: No check if malloc returned NULL
     ptr[0] = 42;
     memcpy(ptr, data, 4000);
     free(ptr);
-}}
+}
 ''')
-    samples.append(f'''
-void divideValues(int a, int b) {{
+    samples.append('''
+void divideValues(int a, int b) {
     // VULNERABLE: No division by zero check
     int result = a / b;
     printf("Result: %d\\n", result);
-}}
+}
 ''')
-    samples.append(f'''
-void handleError(int errorCode) {{
+    samples.append('''
+void handleError(int errorCode) {
     // VULNERABLE: Exposing internal state in error messages
     char errorMsg[512];
     sprintf(errorMsg, "Error %d at address 0x%p in module %s, stack: %s",
             errorCode, __builtin_return_address(0), __FILE__, getStackTrace());
     sendToClient(errorMsg);
-}}
+}
 ''')
     return samples
 
 def a10_safe():
     samples = []
-    samples.append(f'''
-void readFile(const char* filename) {{
+    samples.append('''
+void readFile(const char* filename) {
     // SAFE: Proper error handling
     FILE* f = fopen(filename, "r");
-    if (f == NULL) {{
+    if (f == NULL) {
         logError("Failed to open file", filename);
         return;
-    }}
+    }
     char buffer[1024];
     size_t bytesRead = fread(buffer, 1, sizeof(buffer), f);
-    if (ferror(f)) {{
+    if (ferror(f)) {
         logError("Failed to read file", filename);
-    }}
+    }
     fclose(f);
-}}
+}
 ''')
-    samples.append(f'''
-void processRequest(const char* data, size_t dataLen) {{
+    samples.append('''
+void processRequest(const char* data, size_t dataLen) {
     // SAFE: Check allocation and bounds
-    if (dataLen > 4000) {{
+    if (dataLen > 4000) {
         logError("Data too large", NULL);
         return;
-    }}
+    }
     int* ptr = (int*)malloc(sizeof(int) * 1000);
-    if (ptr == NULL) {{
+    if (ptr == NULL) {
         logError("Memory allocation failed", NULL);
         return;
-    }}
+    }
     memcpy(ptr, data, dataLen);
     free(ptr);
-}}
+}
 ''')
     return samples
 
@@ -753,19 +752,19 @@ def main():
     vuln = sum(1 for r in records if r["is_vulnerable"] == 1)
     safe = sum(1 for r in records if r["is_vulnerable"] == 0)
     
-    print(f"\nDataset generated successfully!")
+    print("\nDataset generated successfully!")
     print(f"  Total samples  : {len(records)}")
     print(f"  Vulnerable     : {vuln}")
     print(f"  Safe           : {safe}")
     print(f"  Train samples  : {len(train)}")
     print(f"  Test samples   : {len(test)}")
-    print(f"\n  Categories covered:")
+    print("\n  Categories covered:")
     
     for cat in OWASP_CATEGORIES:
         count = sum(1 for r in records if r["owasp_category"] == cat)
         print(f"    {cat}: {count} samples")
     
-    print(f"\n  Files:")
+    print("\n  Files:")
     print(f"    {train_path}")
     print(f"    {test_path}")
 

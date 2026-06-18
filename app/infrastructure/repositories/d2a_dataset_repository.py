@@ -11,7 +11,7 @@ from app.domain.contracts import Dataset, DatasetRepository
 class D2ADatasetRepository(DatasetRepository):
     """Loads IBM D2A vulnerability dataset (function task)."""
 
-    def __init__(self, dataset_path: Path, limit: int = 3000):
+    def __init__(self, dataset_path: Path, limit: int | None = None):
         self._dataset_path = dataset_path
         self._limit = limit
 
@@ -27,7 +27,7 @@ class D2ADatasetRepository(DatasetRepository):
         with open(self._dataset_path, "r", encoding="utf-8") as f:
             count = 0
             for line in f:
-                if count >= self._limit:
+                if self._limit is not None and count >= self._limit:
                     break
 
                 try:
@@ -38,10 +38,13 @@ class D2ADatasetRepository(DatasetRepository):
                     label = item.get("label", 0) or item.get("target", 0)
 
                     if code and len(code) > 20:
-                        dataset.append({
+                        sample = {
                             "raw_code": code,
                             "is_vulnerable": int(label)
-                        })
+                        }
+                        if "id" in item:
+                            sample["id"] = item["id"]
+                        dataset.append(sample)
                         count += 1
                 except json.JSONDecodeError:
                     continue
