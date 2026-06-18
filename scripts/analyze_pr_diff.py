@@ -107,7 +107,10 @@ def analyze_files(
         if syntax_errors:
             print("  [!] Syntax errors detected:")
             for err in syntax_errors:
-                print(f"     Line {err.line}:{err.column} - {err.message}")
+                marker = " " * err.column + "^" if err.column else ""
+                print(f"     ❌ {path.name}:{err.line}:{err.column} - {err.message}")
+                print(f"        {err.code_line}")
+                print(f"        {marker}")
                 vulnerability_types.append(f"Syntax Error: {err.message} at line {err.line}:{err.column}")
             cwe_ids.append("CWE-000")
             recommendations.append(
@@ -134,7 +137,7 @@ def analyze_files(
                 "cwe_ids": cwe_ids,
                 "recommendations": recommendations,
                 "features": feature_summary.to_dict(),
-                "syntax_errors": [{"line": e.line, "column": e.column, "message": e.message} for e in syntax_errors],
+                "syntax_errors": [{"line": e.line, "column": e.column, "message": e.message, "code": e.code_line} for e in syntax_errors],
             }
         )
 

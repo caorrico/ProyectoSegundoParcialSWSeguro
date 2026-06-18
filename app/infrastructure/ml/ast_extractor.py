@@ -13,6 +13,7 @@ class SyntaxError:
     line: int
     column: int
     message: str
+    code_line: str = ""
 
 
 SYNTAX_MESSAGE_MAP: dict[str, str] = {
@@ -138,6 +139,8 @@ def validate_code_syntax(code: str, filename: str = "") -> list[SyntaxError]:
     if suffix in {".py", ".js", ".ts", ".go", ".rs"}:
         return []
 
+    lines = code.splitlines()
+
     try:
         if suffix in {".java"} or re.search(r"\b(public\s+class|import\s+java)\b", code):
             lang = tree_sitter.Language(tree_sitter_java.language())
@@ -151,24 +154,26 @@ def validate_code_syntax(code: str, filename: str = "") -> list[SyntaxError]:
             return []
 
         syntax_errors: list[SyntaxError] = []
-        _collect_syntax_errors(tree.root_node, syntax_errors)
+        _collect_syntax_errors(tree.root_node, syntax_errors, lines)
         return syntax_errors
 
     except Exception:
         return [SyntaxError(line=0, column=0, message="Failed to parse code (unknown parse error)")]
 
 
-def _collect_syntax_errors(node: tree_sitter.Node, errors: list[SyntaxError]) -> None:
+def _collect_syntax_errors(node: tree_sitter.Node, errors: list[SyntaxError], lines: list[str]) -> None:
     if node.type == "ERROR":
         row, col = node.start_point
-        errors.append(SyntaxError(line=row + 1, column=col, message="Syntax error"))
+        code_line = lines[row] if row < len(lines) else ""
+        errors.append(SyntaxError(line=row + 1, column=col, message="Syntax error", code_line=code_line))
     if node.is_missing:
         row, col = node.start_point
         token = node.type
         msg = SYNTAX_MESSAGE_MAP.get(token, f"Missing token '{token}'")
-        errors.append(SyntaxError(line=row + 1, column=col, message=msg))
+        code_line = lines[row] if row < len(lines) else ""
+        errors.append(SyntaxError(line=row + 1, column=col, message=msg, code_line=code_line))
     for child in node.children:
-        _collect_syntax_errors(child, errors)
+        _collect_syntax_errors(child, errors, lines)
 
 
 def _suffix(filename: str) -> str:

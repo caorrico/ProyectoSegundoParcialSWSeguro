@@ -20,6 +20,10 @@ for f in report["files"]:
         vuln_types = f.get("vulnerability_types") or []
         if vuln_types:
             lines.append(f"  -> {vuln_types[0]}")
+        syntax_errs = f.get("syntax_errors") or []
+        for se in syntax_errs:
+            if se.get("code"):
+                lines.append(f"  Línea {se['line']}: <code>{se['code'][:60]}</code>")
 
 output = "%0A".join(lines) if lines else "  (no vulnerable files listed)"
 print(output, end="")
