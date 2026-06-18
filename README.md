@@ -1,134 +1,124 @@
 # SecureDataMining DevSecOps
 
-Proyecto Python para analizar codigo fuente modificado en Pull Requests con un modelo clasico de mineria de datos. El flujo no usa LLMs: combina TF-IDF, features AST y reglas de seguridad para clasificar codigo como `SAFE` o `VULNERABLE` y automatizar un pipeline DevSecOps con GitHub Actions, Telegram, pruebas, merge y despliegue.
+Proyecto academico de Desarrollo de Software Seguro que aplica mineria de datos
+para detectar riesgo de vulnerabilidades en codigo fuente. El sistema usa modelos
+clasicos de machine learning y analisis estatico; no depende de LLMs.
 
-## Objetivo
+## Que hace
 
-- Entrenar un modelo tradicional para detectar patrones de vulnerabilidad en codigo fuente.
-- Analizar los archivos modificados en un PR de `dev` hacia `test`.
-- Bloquear el merge si el modelo detecta riesgo, comentar el PR, crear una issue, aplicar labels y notificar por Telegram.
-- Si el codigo es seguro, ejecutar pruebas, mergear a `test`, mergear a `main`, construir Docker y disparar despliegue.
+- Genera datasets sinteticos y datasets de entrenamiento basados en ejemplos OWASP.
+- Entrena modelos de clasificacion para predecir codigo `SAFE` o `VULNERABLE`.
+- Evalua el modelo y guarda metricas en `reports/metrics.json`.
+- Predice riesgo desde metricas JSON o desde archivos de codigo fuente.
+- Escanea directorios completos con codigo C/C++, Java, Python, JavaScript, TypeScript, Go y Rust.
+- Expone una API FastAPI lista para Docker y Render.
+- Automatiza revision de seguridad en Pull Requests con GitHub Actions.
+- Notifica resultados por Telegram cuando los secrets estan configurados.
 
-## Estructura
+## Arquitectura
 
 ```text
 app/
-|-- domain/                 # Entidades, value objects y contratos sin dependencias ML
-|-- application/use_cases/  # Casos de uso de entrenamiento y prediccion
-|-- infrastructure/ml/      # Entrenadores, predictor, AST y features de codigo
-|-- infrastructure/repositories/ # Carga de datasets sinteticos y reales
-|-- interfaces/             # CLI y API FastAPI
-scripts/
-|-- analyze_pr_diff.py      # Analisis JSON de archivos modificados en PR
-|-- extract_code_features.py# Extraccion local de features estaticas
-|-- generate_dataset.py     # Dataset sintetico numerico
-|-- generate_owasp_dataset.py # Dataset OWASP 2025 de codigo fuente
-|-- send_telegram.py        # Notificaciones usando GitHub Secrets
-notebooks/
-|-- train_vulnerability_model.ipynb
-.github/workflows/
-|-- secure-pipeline.yml     # Pipeline CI/CD requerido
+|-- domain/                       # Entidades, value objects y contratos sin frameworks ML
+|-- application/use_cases/        # Casos de uso de entrenamiento y prediccion
+|-- infrastructure/ml/            # Entrenadores, predictores y extraccion de features
+|-- infrastructure/repositories/  # Lectura de datasets sinteticos y reales
+|-- interfaces/                   # CLI, DTOs, API FastAPI y Telegram
+|-- shared/                       # Configuracion de rutas y parametros globales
+scripts/                         # Automatizaciones de dataset, entrenamiento, CI y analisis
+examples/                        # Codigo vulnerable/seguro y ejemplos para prediccion
+tests/                           # Pruebas unitarias
+.github/workflows/               # Pipelines DevSecOps
+docs/                            # Documentacion tecnica
 ```
 
-## Instalacion
+La separacion sigue SOLID: el dominio no importa `pandas`, `sklearn`, `joblib`
+ni FastAPI; esas dependencias viven en infraestructura e interfaces.
+
+## Instalacion local
 
 ```bash
 python -m venv .venv
-# Windows:
 .venv\Scripts\activate
-# Linux/macOS:
-# source .venv/bin/activate
-
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-## Entrenar el modelo
+En PowerShell, si `npm.ps1` u otros scripts tienen restricciones de ejecucion,
+usa los ejecutables `.cmd` equivalentes cuando aplique. Este proyecto principal
+es Python.
 
-Entrenamiento rapido con dataset OWASP local:
+## Uso rapido
+
+Entrenar con dataset sintetico numerico:
+
+```bash
+python scripts/generate_dataset.py
+python -m app.interfaces.cli train
+```
+
+Entrenar con dataset OWASP local:
 
 ```bash
 python scripts/generate_owasp_dataset.py
 python -m app.interfaces.cli train --use-owasp
 ```
 
-Entrenamiento con datasets reales disponibles:
+Predecir desde metricas JSON:
 
 ```bash
-python -m app.interfaces.cli train --use-combined
+python -m app.interfaces.cli predict --input examples/sample_module_metrics.json
 ```
 
-Notebook con combinacion, validacion cruzada y soporte CUDA:
-
-```bash
-jupyter notebook notebooks/train_vulnerability_model.ipynb
-```
-
-El notebook audita y limpia todas las fuentes locales que existan: `data/codexglue/*.jsonl`, `data/d2a/*.jsonl`, `data/reveal/*.jsonl`, `data/megavul/**/*.json`, `data/owasp2025/*.jsonl` y `data/data/CVEFixes.csv.zip`. No depende solamente de archivos `train.jsonl`; tambien usa `validation`, `test` y `dev` cuando son los splits disponibles.
-
-Por defecto `MAX_RECORDS_PER_SOURCE = None`, asi que usa todos los registros utilizables. Si quieres una corrida rapida de prueba puedes cambiar temporalmente ese valor en la primera celda.
-
-El notebook entrena desde cero: elimina los artefactos anteriores antes de ejecutar, limpia marcadores obvios como comentarios `SAFE:` / `VULNERABLE:`, crea un holdout de evaluacion con datasets reales y separa por `group_id` para reducir fuga entre pares vulnerable/fixed. OWASP sintetico puede apoyar el entrenamiento, pero no se usa como test.
-
-Para evitar sesgo hacia la clase mayoritaria, el notebook balancea los datos usados en entrenamiento con submuestreo controlado de la clase mayoritaria hasta una relacion 1:1 entre `safe` y `vulnerable`. El test real no se balancea, porque debe conservar su distribucion natural para que las metricas no queden maquilladas.
-
-El notebook detecta CUDA con `nvidia-smi`. Si CUDA esta disponible y `xgboost` puede usarla, entrena con `device="cuda"`; si no, continua en CPU. Tambien guarda un dataset limpio combinado en `data/processed/` y muestra graficas de distribucion, matriz de confusion, curva ROC, precision-recall, metricas principales e importancia de features. Los artefactos se guardan en:
-
-- `models/vulnerability_model.joblib`
-- `models/vectorizer.joblib`
-- `reports/metrics.json`
-- `reports/training_metadata.json`
-
-## Prediccion local
-
-Con codigo vulnerable:
+Predecir desde codigo fuente:
 
 ```bash
 python -m app.interfaces.cli predict --raw-code examples/vulnerable_sample.cpp
-```
-
-Con codigo seguro:
-
-```bash
 python -m app.interfaces.cli predict --raw-code examples/safe_sample.cpp
 ```
 
-Extraer features estaticas:
+Escanear un directorio completo:
 
 ```bash
-python scripts/extract_code_features.py examples/vulnerable_sample.cpp
+python -m app.interfaces.cli scan examples
 ```
 
-Analizar cambios como lo hace el pipeline:
+Ejecutar validaciones:
 
 ```bash
-git diff --name-only test...HEAD > changed_files.txt
-python scripts/analyze_pr_diff.py --changed-files changed_files.txt --output reports/pr_security_scan.json
+python -m ruff check .
+python -m pytest -q
+python -m pip check
+python -m pip_audit -r requirements.txt
 ```
 
-La salida JSON contiene:
+## Modelos y reportes
 
-```json
-{
-  "status": "VULNERABLE",
-  "probability": 0.91,
-  "details": "1 vulnerable file(s) found out of 1 analyzed.",
-  "files": []
-}
-```
+Los artefactos principales son:
 
-## Features del modelo
+- `models/vulnerability_model.joblib`: modelo usado por el CLI y la API.
+- `reports/metrics.json`: metricas de evaluacion del entrenamiento.
+- `reports/pr_security_scan.json`: reporte generado por el pipeline para PRs.
+- `reports/training_metadata.json`: metadata cuando se ejecuta entrenamiento avanzado.
 
-El pipeline de entrenamiento usa:
+Los modelos y reportes pesados pueden regenerarse y normalmente no deben
+versionarse salvo que se decida publicarlos como artefactos de release.
 
-- tokens de codigo con `TfidfVectorizer`
-- estructura AST simplificada con `tree-sitter`
-- profundidad y cantidad de nodos AST
-- llamadas a funciones
-- imports/includes
-- llamadas peligrosas como `eval`, `exec`, `subprocess(..., shell=True)`, `os.system`, `system`, `pickle.load`, `yaml.load`
-- patrones de SQL raw, command injection, hardcoded secrets y funciones inseguras de C/C++
-- presencia de sanitizacion, escape o validacion
+## Tecnologias principales
+
+- Python 3.10+
+- scikit-learn, Random Forest, TF-IDF y pipelines de features
+- XGBoost y LightGBM para experimentacion avanzada
+- pandas, numpy, scipy y joblib
+- tree-sitter para features AST de C/C++ y Java
+- SHAP para explicabilidad local del modelo
+- FastAPI y Uvicorn para la API
+- Docker y Render para despliegue
+- pytest, ruff, pip-audit y GitHub Actions para DevSecOps
+- Telegram Bot API para notificaciones del pipeline
+
+La explicacion completa esta en
+[`docs/TECNOLOGIAS_PIPELINE.md`](docs/TECNOLOGIAS_PIPELINE.md).
 
 ## API y Docker
 
@@ -138,11 +128,11 @@ Ejecutar API local:
 uvicorn app.interfaces.api:app --host 0.0.0.0 --port 8000
 ```
 
-Endpoints principales:
+Endpoints:
 
-- `GET /health`
-- `POST /predict`
-- `POST /scan`
+- `GET /health`: estado del servicio y disponibilidad del modelo.
+- `POST /predict`: prediccion de un fragmento de codigo.
+- `POST /scan`: escaneo de varios archivos enviados en JSON.
 
 Construir imagen:
 
@@ -150,83 +140,34 @@ Construir imagen:
 docker build -t secure-datamining-api .
 ```
 
-## Pipeline CI/CD
+El despliegue en Render esta descrito en `render.yaml`.
 
-Workflow principal:
+## Pipelines
 
-```text
-.github/workflows/secure-pipeline.yml
-```
+El repositorio contiene dos workflows:
 
-Se activa con Pull Requests hacia `test`, por ejemplo `dev -> test`.
+- `.github/workflows/secure-pipeline.yml`: pipeline DevSecOps principal para PRs hacia `test`. Ejecuta lint, pruebas, prepara modelo si hace falta, analiza archivos modificados, comenta el PR, aplica labels, bloquea codigo vulnerable, mergea a `test` si todo pasa y luego mergea a `main`, construye Docker y dispara Render.
+- `.github/workflows/security-mining.yml`: workflow alternativo de inferencia de seguridad para PRs hacia `test`. Ejecuta `scripts/ci_inference_pipeline.py`, genera `security_report.json`, comenta resultados y bloquea cuando detecta vulnerabilidad.
 
-Fases:
+Secrets recomendados en GitHub Actions:
 
-1. Notifica inicio por Telegram.
-2. Instala dependencias y prepara el modelo si no existe.
-3. Detecta archivos modificados.
-4. Ejecuta `scripts/analyze_pr_diff.py`.
-5. Si el resultado es `VULNERABLE`, falla el job, comenta el PR, crea issue, aplica `fixing-required` y notifica.
-6. Si el resultado es `SAFE`, comenta el PR, aplica `security-approved`, notifica y ejecuta pruebas.
-7. Si las pruebas pasan, mergea el PR a `test`.
-8. Mergea `test` hacia `main`, construye Docker y dispara deploy en Render si existe hook.
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `RENDER_DEPLOY_HOOK_URL`
+- `PRODUCTION_URL`
 
-## Secrets requeridos
+## Flujo de ramas recomendado
 
-Configurar en GitHub: `Settings -> Secrets and variables -> Actions`.
+1. Trabajar cambios en `dev` o una rama feature.
+2. Crear Pull Request hacia `test`.
+3. Dejar que GitHub Actions ejecute revision de seguridad y pruebas.
+4. Si el resultado es vulnerable, corregir y actualizar el PR.
+5. Si el resultado es seguro, el pipeline puede mergear a `test`.
+6. Luego el pipeline mergea `test` hacia `main`, construye Docker y despliega.
 
-- `TELEGRAM_BOT_TOKEN`: token del bot de Telegram.
-- `TELEGRAM_CHAT_ID`: chat o grupo destino.
-- `RENDER_DEPLOY_HOOK_URL`: opcional, hook de despliegue de Render.
-- `PRODUCTION_URL`: opcional, URL final de produccion para documentacion/notificaciones.
+## Notas de seguridad
 
-El workflow usa `GITHUB_TOKEN` para comentar PRs, crear issues, aplicar labels y mergear. Si la organizacion bloquea merges con `GITHUB_TOKEN`, crear un PAT con permisos de repo y adaptar el checkout/merge para usar ese secret.
-
-## Configurar Telegram
-
-Puedes obtener el `chat_id` con:
-
-```bash
-python scripts/setup_telegram.py --token <TOKEN_DEL_BOT>
-```
-
-No hardcodees secretos en el repositorio. En local puedes exportarlos como variables de entorno para probar:
-
-```bash
-set TELEGRAM_BOT_TOKEN=<token>
-set TELEGRAM_CHAT_ID=<chat_id>
-python scripts/send_telegram.py --message "Prueba SecureDataMining"
-```
-
-## Branch Protection
-
-Configurar reglas en GitHub:
-
-1. Proteger `test`.
-2. Proteger `main`.
-3. Requerir que el workflow `Secure ML CI/CD Pipeline` pase antes de mergear.
-4. Bloquear push directo a `main`.
-5. Permitir merge automatico solo si los checks estan en verde.
-
-## Validacion local
-
-```bash
-python -m pytest -q
-python scripts/generate_owasp_dataset.py
-python -m app.interfaces.cli train --use-owasp
-python -m app.interfaces.cli predict --raw-code examples/vulnerable_sample.cpp
-python scripts/analyze_pr_diff.py --changed-files changed_files.txt
-```
-
-## Despliegue
-
-El repo incluye `Dockerfile` y `render.yaml`. En Render:
-
-1. Crear un Web Service conectado al repositorio.
-2. Configurar build/deploy con Docker.
-3. Copiar el Deploy Hook en `RENDER_DEPLOY_HOOK_URL`.
-4. Configurar `PRODUCTION_URL` con la URL publica.
-
-## Notas de versionado
-
-Los modelos, reportes y datasets grandes estan ignorados por Git porque se regeneran con scripts o notebook. Si se necesita publicar un modelo entrenado, subirlo como release artifact o ajustar conscientemente `.gitignore`.
+- No guardar tokens ni credenciales en el repositorio.
+- Mantener los secrets en GitHub Actions o variables de entorno locales.
+- Revisar `pip-audit` antes de entregar o desplegar.
+- Reentrenar el modelo cuando cambien datasets, features o umbrales.

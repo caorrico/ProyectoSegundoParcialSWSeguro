@@ -2,7 +2,7 @@
 # SecureDataMining API — Dockerfile
 # Modelo de minería de datos para detección de vulnerabilidades
 # ============================================================
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 # Metadata
 LABEL maintainer="ESPE DevSecOps"
