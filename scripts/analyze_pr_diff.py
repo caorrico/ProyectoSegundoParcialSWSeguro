@@ -107,7 +107,7 @@ def analyze_files(
 
         syntax_errors = validate_code_syntax(code, str(path))
         if syntax_errors:
-            print(f"  ❌ Syntax errors detected:")
+            print("  [!] Syntax errors detected:")
             for err in syntax_errors:
                 print(f"     Line {err.line}:{err.column} - {err.message}")
                 vulnerability_types.append(f"Syntax Error: {err.message} at line {err.line}:{err.column}")
