@@ -4,15 +4,10 @@ Pipeline final de alto rendimiento para alcanzar >82% Accuracy.
 Consolidado para evitar errores de importación y guardar gráficos.
 """
 import sys
-from pathlib import Path
-
-# Agregar project root al path
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import FeatureUnion
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay, roc_curve, roc_auc_score
@@ -20,6 +15,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from xgboost import XGBClassifier
 from app.infrastructure.repositories.combined_dataset_repository import CombinedDatasetRepository
 from scripts.extractors import RobustASTFeatureExtractor, EnhancedCodeMetrics
+
+# Agregar project root al path
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # === PIPELINE FINAL ===
 

@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-from pathlib import Path
 import sys
-
-# Fix imports
-PROJECT_ROOT = Path('.').resolve()
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
+import matplotlib.pyplot as plt
+from pathlib import Path
 from app.infrastructure.repositories.dataset_cleaning import build_clean_training_frame
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.compose import ColumnTransformer
@@ -15,6 +10,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+
+# Fix imports
+PROJECT_ROOT = Path('.').resolve()
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 # Configuration
 TEST_SIZE = 0.25
