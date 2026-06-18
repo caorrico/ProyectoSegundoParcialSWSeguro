@@ -205,6 +205,7 @@ jobs:
             TOTAL=$(python -c "import json; print(len(json.load(open('reports/pr_security_scan.json'))['files']))")
             VULN=$(python -c "import json; r=json.load(open('reports/pr_security_scan.json')); print(len([f for f in r['files'] if f['status'] == 'VULNERABLE']))")
             PCT=$(python -c "import json; r=json.load(open('reports/pr_security_scan.json')); t=len(r['files']); v=len([f for f in r['files'] if f['status'] == 'VULNERABLE']); print(f'{v*100//t}%')")
+            DETAILS=$(python scripts/format_telegram_vulnerable.py)
             MSG="${MSG}%0A<b>Fases completadas:</b>%0A"
             MSG="${MSG}1️⃣ Ruff linting: ✅ Sin errores%0A"
             MSG="${MSG}2️⃣ Análisis ML: ✅ Completado%0A"
@@ -215,18 +216,7 @@ jobs:
             MSG="${MSG}⚠️ Probabilidad máxima: <b>$PCT_PROB</b>%0A"
             MSG="${MSG}📁 Archivos vulnerables: <b>$VULN de $TOTAL ($PCT)</b>%0A"
             MSG="${MSG}%0A📄 <b>Archivos afectados:</b>%0A"
-            MSG="${MSG}$(python -c "
-import json
-r = json.load(open('reports/pr_security_scan.json'))
-lines = []
-for f in r['files']:
-    if f['status'] == 'VULNERABLE':
-        pct = f['probability'] * 100
-        lines.append(f'• <code>{f[\"path\"]}</code> - {pct:.1f}% ({f[\"risk_level\"]})')
-        if f.get('vulnerability_types'):
-            lines.append(f'  └ {f[\"vulnerability_types\"][0]}')
-print('%0A'.join(lines))
-")%0A"
+            MSG="${MSG}$DETAILS%0A"
           else
             MSG="${MSG}⚠️ Error: Reporte no encontrado.%0A"
           fi
